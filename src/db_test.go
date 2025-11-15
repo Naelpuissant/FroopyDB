@@ -10,7 +10,7 @@ var db *src.DB
 
 func TestMain(m *testing.M) {
 	os.RemoveAll("../db/test")
-	db = src.NewDB("../db/test", 5, 1000)
+	db = src.NewDB("../db/test", 5, 1000, true)
 
 	code := m.Run()
 

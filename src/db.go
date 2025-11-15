@@ -12,12 +12,12 @@ var (
 type DB struct {
 	folder   string
 	memTable *MemTable
-	segments *SegmentStore
+	sstables *SSTableStore
 }
 
-func NewDB(folder string, segmentMaxSize int, memTableMaxSize int) *DB {
-	if segmentMaxSize == 0 {
-		segmentMaxSize = 1000
+func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool) *DB {
+	if sstableMaxSize == 0 {
+		sstableMaxSize = 1000
 	}
 
 	if memTableMaxSize == 0 {
@@ -26,26 +26,30 @@ func NewDB(folder string, segmentMaxSize int, memTableMaxSize int) *DB {
 
 	// TODO : for now I'll remove db everytime but
 	// I might handle the db setup from existing folder
-	// aka find the latest segment at start
-	os.RemoveAll(folder)
+	// aka find the latest sstable at start
+	if clearOnStart {
+		os.RemoveAll(folder)
+	}
 	os.MkdirAll(folder, 0777)
+
+	logger := NewWAL(folder)
 
 	memTable := NewMemTable(
 		memTableMaxSize,
-		NewLog(folder),
+		logger,
 	)
 
-	segments := NewSegmentStore(folder, segmentMaxSize)
+	sstables := NewSSTableStore(folder, sstableMaxSize)
 
 	return &DB{
 		folder:   folder,
 		memTable: memTable,
-		segments: segments,
+		sstables: sstables,
 	}
 }
 
 func (db *DB) Close() {
-	db.segments.CloseAll()
+	db.sstables.CloseAll()
 }
 
 func (db *DB) Set(key int, value string) string {
@@ -53,7 +57,7 @@ func (db *DB) Set(key int, value string) string {
 	valueBytes := StrToBytes(value)
 
 	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
-		newSegment := db.segments.AddNew()
+		newSegment := db.sstables.AddNew()
 		newSegment.Open()
 		db.memTable.Flush(newSegment)
 	}
@@ -67,11 +71,11 @@ func (db *DB) Get(key int) string {
 	if found {
 		return string(value)
 	}
-	return string(db.segments.Search(([4]byte)(keyBytes)))
+	return string(db.sstables.Search(([4]byte)(keyBytes)))
 }
 
 func (db *DB) Delete(key int) string {
 	line := db.Set(key, "\x00")
-	db.segments.DeleteIndex(([4]byte)(Uint32ToBytes(uint32(key))))
+	db.sstables.DeleteIndex(([4]byte)(Uint32ToBytes(uint32(key))))
 	return line
 }

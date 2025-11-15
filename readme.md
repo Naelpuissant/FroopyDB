@@ -62,13 +62,15 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [x] Work with bytes arrays (keep keys as int in db call)
 - [x] create file format for segments (rename SSTable)
 - [x] Log bin format 
-- [ ] crash or start recovery
+- [x] crash or start recovery
 - [ ] compaction process
 - [ ] parallel processing
 - [ ] clean error handling (too add when bored)
+- [ ] refactor method privacy (too add when bored)
 - [ ] range queries
 - [ ] Bloom filter
 - [ ] Skiplist custom
+- [ ] MMap potential use and benefits
 
 
 ## Usefull links

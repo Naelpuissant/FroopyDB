@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	db := src.NewDB("./db/main", 0, 0)
+	db := src.NewDB("./db/main", 0, 0, false)
 	defer db.Close()
 
 	println("====GET====")
