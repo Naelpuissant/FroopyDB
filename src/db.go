@@ -1,0 +1,77 @@
+package src
+
+import (
+	"os"
+)
+
+var (
+	KB = 1024
+	MB = 1024 * KB
+)
+
+type DB struct {
+	folder   string
+	memTable *MemTable
+	segments *SegmentStore
+}
+
+func NewDB(folder string, segmentMaxSize int, memTableMaxSize int) *DB {
+	if segmentMaxSize == 0 {
+		segmentMaxSize = 1000
+	}
+
+	if memTableMaxSize == 0 {
+		memTableMaxSize = 64 * MB
+	}
+
+	// TODO : for now I'll remove db everytime but
+	// I might handle the db setup from existing folder
+	// aka find the latest segment at start
+	os.RemoveAll(folder)
+	os.MkdirAll(folder, 0777)
+
+	memTable := NewMemTable(
+		memTableMaxSize,
+		NewLog(folder),
+	)
+
+	segments := NewSegmentStore(folder, segmentMaxSize)
+
+	return &DB{
+		folder:   folder,
+		memTable: memTable,
+		segments: segments,
+	}
+}
+
+func (db *DB) Close() {
+	db.segments.CloseAll()
+}
+
+func (db *DB) Set(key int, value string) string {
+	keyBytes := Uint32ToBytes(uint32(key))
+	valueBytes := StrToBytes(value)
+
+	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
+		newSegment := db.segments.AddNew()
+		newSegment.Open()
+		db.memTable.Flush(newSegment)
+	}
+	db.memTable.Set(keyBytes, valueBytes)
+	return value
+}
+
+func (db *DB) Get(key int) string {
+	keyBytes := Uint32ToBytes(uint32(key))
+	value, found := db.memTable.Get(keyBytes)
+	if found {
+		return string(value)
+	}
+	return string(db.segments.Search(([4]byte)(keyBytes)))
+}
+
+func (db *DB) Delete(key int) string {
+	line := db.Set(key, "\x00")
+	db.segments.DeleteIndex(([4]byte)(Uint32ToBytes(uint32(key))))
+	return line
+}
