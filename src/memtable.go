@@ -94,13 +94,13 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 	memTableSize := 0
 
 	for offset < fsize {
-		klenBytes := make([]byte, 4)
+		klenBytes := make([]byte, 2)
 		file.ReadAt(klenBytes, offset)
-		offset += 4
+		offset += 2
 
-		vlenBytes := make([]byte, 4)
+		vlenBytes := make([]byte, 2)
 		file.ReadAt(vlenBytes, offset)
-		offset += 4
+		offset += 2
 
 		klen := BytesToUint16(klenBytes)
 		key := make([]byte, klen)
