@@ -15,13 +15,16 @@ A persistent LSM-tree based/key-value db for educational purpose
 SSTable
 ```
 Data
-vlen uint16 | value bytes | ... | vlen uint16 | value bytes
+|         Data Block        |
+| vlen uint16 | value bytes | ... | vlen uint16 | value bytes
+
 Metadata
-klen uint16 | key bytes | offset uint64 | ... | indicesStartOffset uint16
+|               Index Block               |
+| klen uint16 | key bytes | offset uint64 | ... | indicesStartOffset uint32
 ```
 
 WAL
-```
+``` 
 klen uint16 | vlen uint 16 | key bytes | value bytes 
 ```
 
@@ -62,7 +65,8 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [x] Work with bytes arrays (keep keys as int in db call)
 - [x] create file format for segments (rename SSTable)
 - [x] Log bin format 
-- [x] crash or start recovery
+- [x] crash or start recovery WAL
+- [ ] crash or start recovery SStables
 - [ ] compaction process
 - [ ] parallel processing
 - [ ] clean error handling (too add when bored)
@@ -71,6 +75,8 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] MMap potential use and benefits
+- [ ] Setup CI
+- [ ] Recode everything in Rust
 
 
 ## Usefull links

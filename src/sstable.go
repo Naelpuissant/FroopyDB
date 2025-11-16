@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 type SStable struct {
@@ -25,6 +26,42 @@ func NewSSTable(name string, size int) *SStable {
 		name:  name,
 		size:  size,
 		index: map[[4]byte]uint32{},
+	}
+}
+
+func NewSSTableFromFile(file *os.File) *SStable {
+	end, _ := file.Seek(0, io.SeekEnd)
+
+	endOffset := end - 2
+
+	startOffsetBytes := make([]byte, 4)
+	file.ReadAt(startOffsetBytes, endOffset)
+
+	startOffset := int64(BytesToUint32(startOffsetBytes))
+	size := startOffset
+
+	index := map[[4]byte]uint32{}
+	for startOffset < endOffset {
+		klenBytes := make([]byte, 2)
+		file.ReadAt(klenBytes, startOffset)
+		startOffset += 2
+
+		klen := BytesToUint16(klenBytes)
+		key := make([]byte, klen)
+		file.ReadAt(key, startOffset)
+		startOffset += int64(klen)
+
+		offset := make([]byte, 4)
+		file.ReadAt(offset, startOffset)
+		startOffset += 4
+
+		index[[4]byte(key)] = BytesToUint32(offset)
+	}
+
+	return &SStable{
+		size:  int(size),
+		name:  file.Name(),
+		index: index,
 	}
 }
 
@@ -102,10 +139,22 @@ type SSTableStore struct {
 
 func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
 	tables := []*SStable{}
+	loadSSTablesFromFile(tables, folder)
 	return &SSTableStore{
 		tables:         tables,
 		folder:         folder,
 		sstableMaxSize: sstableMaxSize,
+	}
+}
+
+func loadSSTablesFromFile(tables []*SStable, folder string) {
+	dir, _ := os.ReadDir(folder)
+
+	for _, entry := range dir {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
+			file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_RDONLY, 0777)
+			tables = append(tables, NewSSTableFromFile(file))
+		}
 	}
 }
 

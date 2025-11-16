@@ -5,15 +5,19 @@ import (
 )
 
 func main() {
-	db := src.NewDB("./db/main", 0, 0, false)
+	db := src.NewDB("./db/main", 0, 256, false)
 	defer db.Close()
 
 	println("====GET====")
-	db.Set(12, "foo")
-	println(db.Get(12))
+	db.Set(1, "foo")
+	println(db.Get(1))
 
-	db.Set(12, "bar")
-	println(db.Get(12))
+	db.Set(1, "bar")
+	println(db.Get(1))
+
+	for i := range 100 {
+		db.Set(i+2, "spam")
+	}
 
 	println("====DELETE====")
 	print(db.Delete(12))
