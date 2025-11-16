@@ -30,15 +30,16 @@ func NewSSTable(name string, size int) *SStable {
 }
 
 func NewSSTableFromFile(file *os.File) *SStable {
-	end, _ := file.Seek(0, io.SeekEnd)
+	fstat, _ := file.Stat()
+	end := fstat.Size()
 
-	endOffset := end - 2
+	endOffset := end - 4
 
 	startOffsetBytes := make([]byte, 4)
 	file.ReadAt(startOffsetBytes, endOffset)
 
 	startOffset := int64(BytesToUint32(startOffsetBytes))
-	size := startOffset
+	indexBlockSize := startOffset
 
 	index := map[[4]byte]uint32{}
 	for startOffset < endOffset {
@@ -58,8 +59,13 @@ func NewSSTableFromFile(file *os.File) *SStable {
 		index[[4]byte(key)] = BytesToUint32(offset)
 	}
 
+	if startOffset != endOffset {
+		panic("Failed to recover sstable")
+	}
+
+	println(file.Name() + " : sstable recovered")
 	return &SStable{
-		size:  int(size),
+		size:  int(indexBlockSize),
 		name:  file.Name(),
 		index: index,
 	}

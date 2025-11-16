@@ -115,6 +115,12 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 		store.Set(key, val)
 		memTableSize += int(klen) + int(vlen)
 	}
+
+	if offset != fsize {
+		panic("Failed to recover memtable")
+	}
+
+	println(file.Name() + " : memtable recovered")
 	return memTableSize
 }
 

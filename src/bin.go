@@ -21,9 +21,9 @@ func StrToBytes(s string) []byte {
 }
 
 func BytesToUint16(b []byte) uint16 {
-	return binary.BigEndian.Uint16(b)
+	return binary.LittleEndian.Uint16(b)
 }
 
 func BytesToUint32(b []byte) uint32 {
-	return binary.BigEndian.Uint32(b)
+	return binary.LittleEndian.Uint32(b)
 }
