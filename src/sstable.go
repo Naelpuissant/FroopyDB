@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type SStable struct {
+type SSTable struct {
 	name  string
 	size  int
 	file  *os.File
@@ -21,15 +21,15 @@ func newSSTableName(folder string, incr int) string {
 	return filepath.Join(folder, filename)
 }
 
-func NewSSTable(name string, size int) *SStable {
-	return &SStable{
+func NewSSTable(name string, size int) *SSTable {
+	return &SSTable{
 		name:  name,
 		size:  size,
 		index: map[[4]byte]uint32{},
 	}
 }
 
-func NewSSTableFromFile(file *os.File) *SStable {
+func NewSSTableFromFile(file *os.File) *SSTable {
 	fstat, _ := file.Stat()
 	end := fstat.Size()
 
@@ -64,14 +64,14 @@ func NewSSTableFromFile(file *os.File) *SStable {
 	}
 
 	println(file.Name() + " : sstable recovered")
-	return &SStable{
+	return &SSTable{
 		size:  int(indexBlockSize),
 		name:  file.Name(),
 		index: index,
 	}
 }
 
-func (sst *SStable) WriteBlock(key [4]byte, value []byte) {
+func (sst *SSTable) WriteBlock(key [4]byte, value []byte) {
 	offset, _ := sst.file.Seek(0, io.SeekCurrent)
 
 	vlen := Uint16ToBytes(uint16(len(value)))
@@ -86,7 +86,7 @@ func (sst *SStable) WriteBlock(key [4]byte, value []byte) {
 	sst.size += 16 + len(value)
 }
 
-func (sst *SStable) WriteIndices() {
+func (sst *SSTable) WriteIndices() {
 	indexOffset, _ := sst.file.Seek(0, io.SeekCurrent)
 	for key, offset := range sst.index {
 		klen := Uint16ToBytes(uint16(len(key)))
@@ -99,31 +99,31 @@ func (sst *SStable) WriteIndices() {
 	sst.size += 32
 }
 
-func (sst *SStable) Open() *os.File {
+func (sst *SSTable) Open() *os.File {
 	file, _ := os.OpenFile(sst.name, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
 	sst.file = file
 	return file
 }
 
-func (sst *SStable) Close() {
+func (sst *SSTable) Close() {
 	sst.file.Close()
 }
 
-func (sst *SStable) Remove() {
+func (sst *SSTable) Remove() {
 	sst.Close()
 	os.Remove(sst.name)
 }
 
-func (sst *SStable) Rename(new string) {
+func (sst *SSTable) Rename(new string) {
 	os.Rename(sst.name, new)
 	sst.name = new
 }
 
-func (sst *SStable) DeleteIndex(key [4]byte) {
+func (sst *SSTable) DeleteIndex(key [4]byte) {
 	delete(sst.index, key)
 }
 
-func (sst *SStable) Search(key [4]byte) []byte {
+func (sst *SSTable) Search(key [4]byte) []byte {
 	offset, found := sst.index[key]
 	if !found {
 		return []byte{}
@@ -138,13 +138,13 @@ func (sst *SStable) Search(key [4]byte) []byte {
 }
 
 type SSTableStore struct {
-	tables         []*SStable // Map maybe better
+	tables         []*SSTable // Map maybe better
 	folder         string
 	sstableMaxSize int
 }
 
 func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
-	tables := []*SStable{}
+	tables := []*SSTable{}
 	loadSSTablesFromFile(tables, folder)
 	return &SSTableStore{
 		tables:         tables,
@@ -153,7 +153,7 @@ func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
 	}
 }
 
-func loadSSTablesFromFile(tables []*SStable, folder string) {
+func loadSSTablesFromFile(tables []*SSTable, folder string) {
 	dir, _ := os.ReadDir(folder)
 
 	for _, entry := range dir {
@@ -164,7 +164,7 @@ func loadSSTablesFromFile(tables []*SStable, folder string) {
 	}
 }
 
-func (store *SSTableStore) AddNew() *SStable {
+func (store *SSTableStore) AddNew() *SSTable {
 	name := newSSTableName(store.folder, len(store.tables))
 	table := NewSSTable(name, 0)
 	store.tables = append(store.tables, table)
@@ -177,11 +177,11 @@ func (store *SSTableStore) CloseAll() {
 	}
 }
 
-func (store *SSTableStore) Last() *SStable {
+func (store *SSTableStore) Last() *SSTable {
 	return store.tables[len(store.tables)-1]
 }
 
-func (store *SSTableStore) Remove(sst *SStable) {
+func (store *SSTableStore) Remove(sst *SSTable) {
 	for i := len(store.tables) - 1; i >= 0; i-- {
 		if store.tables[i].name == sst.name {
 			store.tables = append(store.tables[:i], store.tables[i+1:]...)
@@ -191,7 +191,7 @@ func (store *SSTableStore) Remove(sst *SStable) {
 	}
 }
 
-func (store *SSTableStore) Replace(old, new *SStable) {
+func (store *SSTableStore) Replace(old, new *SSTable) {
 	for i := len(store.tables) - 1; i >= 0; i-- {
 		if store.tables[i].name == old.name {
 			old.Remove()

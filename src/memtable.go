@@ -124,7 +124,7 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 	return memTableSize
 }
 
-func (m *MemTable) Flush(seg *SStable) {
+func (m *MemTable) Flush(seg *SSTable) {
 	// Aptent to start parallel sstable write
 	////
 	currStore := m.store

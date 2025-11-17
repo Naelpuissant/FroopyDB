@@ -66,7 +66,7 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [x] create file format for segments (rename SSTable)
 - [x] Log bin format 
 - [x] crash or start recovery WAL
-- [ ] crash or start recovery SStables
+- [x] crash or start recovery SStables
 - [ ] compaction process
 - [ ] parallel processing
 - [ ] clean error handling (too add when bored)
