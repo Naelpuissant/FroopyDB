@@ -28,6 +28,19 @@ WAL
 klen uint16 | vlen uint 16 | key bytes | value bytes 
 ```
 
+## Compaction Process
+
+- Level based compaction (L0, L1, L2) 
+- add level to file name ([level]_[incr].sst)
+- L0 files can have overlapping keys but higher levels can't
+- each sst write run compaction
+- if number of sst files > threshold (default 3) : compaction
+    - if L1 and sst range overlap L1 -> merge in L1
+    - else -> create L1 whith the oldest incr in name
+- keep ssts correctly ordered in the store
+- This shouldn't change the search method
+
+
 ## Bench
 
 pure file (seq read) bench
@@ -72,6 +85,7 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] range queries
+- [ ] Think about splitting files for each sstable (data, index, metadata)
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] MMap potential use and benefits

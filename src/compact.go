@@ -1,68 +1,24 @@
 package src
 
-// func (db *DB) Set(key int, value string) string {
-// 	// Sould be refactored
-// 	if db.seg.lines+1 > db.segmentMaxSize {
-// 		newSegmentLines := db.compactSegments([]*os.File{db.seg.file}, db.seg.name)
-// 		// while compacting I should write on new segment
-// 		// and then merging so compact is non blocking
-// 		newSegment := db.segments.AddNew()
-// 		prevSegment := db.seg
+func Compact(tables []*SSTable, target *SSTable) *SSTable {
+	compactedTable := map[[4]byte][]byte{}
 
-// 		// add to new seg
-// 		db.seg = newSegment
-// 		db.seg.Open()
+	for _, table := range tables {
+		table.file.Seek(0, 0)
+		for idx := range table.index {
+			compactedTable[idx] = table.Search(idx)
+		}
+	}
 
-// 		line := db.seg.Add(key, value)
+	// persist in new tmp file with max incr file name
+	tmpSegment := NewSSTable(target.folder, 1, target.incr, true, 0)
+	tmpSegment.Open()
 
-// 		// can merge
-// 		if newSegmentLines+1 <= db.segmentMaxSize {
-// 			// once I did the non blocking compact
-// 			// I should be aware that the new segment
-// 			// might be more than 1 line
-// 			newSegmentLines = db.compactSegments([]*os.File{prevSegment.file, db.seg.file}, prevSegment.name)
+	for key, value := range compactedTable {
+		tmpSegment.WriteBlock(key, value)
+	}
+	tmpSegment.WriteIndices()
+	tmpSegment.Close()
 
-// 			db.segments.Remove(newSegment)
-// 			db.seg.lines = newSegmentLines
-// 			db.seg = prevSegment
-// 		}
-// 		return line
-// 	}
-// 	line := db.seg.Add(key, value)
-// 	return line
-// }
-
-// func compactSegments(segments []*os.File, target string) int {
-// 	compactedSegment := map[int]string{}
-
-// 	for _, segment := range segments {
-// 		segment.Seek(0, 0)
-// 		scanner := bufio.NewScanner(segment)
-// 		for scanner.Scan() {
-// 			line := strings.Split(scanner.Text(), ":")
-
-// 			currKey, _ := strconv.Atoi(line[0])
-// 			currValue := line[1]
-// 			if currValue == "\x00" {
-// 				delete(compactedSegment, currKey)
-// 			} else {
-// 				compactedSegment[currKey] = currValue
-// 			}
-// 		}
-// 	}
-
-// 	// persist in new tmp file
-// 	tmpSegmentName := fmt.Sprintf("%s_tmp", target)
-// 	tmpSegment := NewSegment(tmpSegmentName, 0)
-// 	tmpSegment.Open()
-
-// 	for key, value := range compactedSegment {
-// 		tmpSegment.Add(key, value)
-// 	}
-
-// 	tmpSegment.Rename(target)
-// 	db.segments.Replace(db.seg, tmpSegment)
-// 	db.seg = tmpSegment
-
-// 	return db.seg.lines
-// }
+	return tmpSegment
+}

@@ -5,28 +5,55 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 )
 
 type SSTable struct {
-	name  string
-	size  int
-	file  *os.File
-	index map[[4]byte]uint32 // uint32 key
+	name   string
+	folder string
+	level  int
+	incr   int
+	size   int
+	file   *os.File
+	index  map[[4]byte]uint32 // uint32 key
 }
 
-func newSSTableName(folder string, incr int) string {
-	filename := fmt.Sprintf("%d.sst", incr)
+func newSSTableName(folder string, level int, incr int, tmp bool) string {
+	prefix := ".sst"
+	if tmp {
+		prefix = ".sst.tmp"
+	}
+	filename := fmt.Sprintf("%d_%d%s", level, incr, prefix)
 	return filepath.Join(folder, filename)
 }
 
-func NewSSTable(name string, size int) *SSTable {
+func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
+	name := newSSTableName(folder, level, incr, tmp)
 	return &SSTable{
-		name:  name,
-		size:  size,
-		index: map[[4]byte]uint32{},
+		name:   name,
+		folder: folder,
+		level:  level,
+		incr:   incr,
+		size:   size,
+		index:  map[[4]byte]uint32{},
 	}
+}
+
+// ParseSSTableName parses "<folder>/<level>_<incr>.sst"
+func parseSSTableName(path string) (folder string, level int, incr int) {
+	folder = filepath.Dir(path)
+	base := filepath.Base(path) // e.g. "0_12.sst"
+
+	// Remove extension
+	name := strings.TrimSuffix(base, filepath.Ext(base)) // "0_12"
+
+	parts := strings.Split(name, "_")
+
+	level, _ = strconv.Atoi(parts[0])
+	incr, _ = strconv.Atoi(parts[1])
+
+	return folder, level, incr
 }
 
 func NewSSTableFromFile(file *os.File) *SSTable {
@@ -64,10 +91,16 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 	}
 
 	println(file.Name() + " : sstable recovered")
+
+	folder, level, incr := parseSSTableName(file.Name())
 	return &SSTable{
-		size:  int(indexBlockSize),
-		name:  file.Name(),
-		index: index,
+		size:   int(indexBlockSize),
+		folder: folder, // todo : fix this
+		level:  level,
+		incr:   incr,
+		name:   file.Name(),
+		index:  index,
+		file:   file,
 	}
 }
 
@@ -137,6 +170,10 @@ func (sst *SSTable) Search(key [4]byte) []byte {
 	return value
 }
 
+func (sst *SSTable) Index() map[[4]byte]uint32 {
+	return sst.index
+}
+
 type SSTableStore struct {
 	tables         []*SSTable // Map maybe better
 	folder         string
@@ -165,8 +202,7 @@ func loadSSTablesFromFile(tables []*SSTable, folder string) {
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
-	name := newSSTableName(store.folder, len(store.tables))
-	table := NewSSTable(name, 0)
+	table := NewSSTable(store.folder, 0, len(store.tables), false, 0)
 	store.tables = append(store.tables, table)
 	return table
 }
@@ -177,11 +213,7 @@ func (store *SSTableStore) CloseAll() {
 	}
 }
 
-func (store *SSTableStore) Last() *SSTable {
-	return store.tables[len(store.tables)-1]
-}
-
-func (store *SSTableStore) Remove(sst *SSTable) {
+func (store *SSTableStore) remove(sst *SSTable) {
 	for i := len(store.tables) - 1; i >= 0; i-- {
 		if store.tables[i].name == sst.name {
 			store.tables = append(store.tables[:i], store.tables[i+1:]...)
@@ -191,16 +223,15 @@ func (store *SSTableStore) Remove(sst *SSTable) {
 	}
 }
 
-func (store *SSTableStore) Replace(old, new *SSTable) {
+func (store *SSTableStore) replace(old, new *SSTable) {
 	for i := len(store.tables) - 1; i >= 0; i-- {
 		if store.tables[i].name == old.name {
 			old.Remove()
 			store.tables[i] = new
-
 			// Keep it sorted... meh
-			sort.Slice(store.tables, func(a, b int) bool {
-				return store.tables[a].name < store.tables[b].name
-			})
+			// sort.Slice(store.tables, func(a, b int) bool {
+			// 	return store.tables[a].name < store.tables[b].name
+			// })
 			return
 		}
 	}
@@ -220,4 +251,43 @@ func (store *SSTableStore) DeleteIndex(key [4]byte) {
 	for _, table := range store.tables {
 		table.DeleteIndex(key)
 	}
+}
+
+func (store *SSTableStore) Tables() []*SSTable {
+	return store.tables
+}
+
+func (store *SSTableStore) MaybeCompactL0() {
+	threshold := 3
+
+	tablesToCompact := []*SSTable{}
+	tablesToDelete := []*SSTable{}
+	tablesToReplace := [][2]*SSTable{}
+
+	count := 0
+	for _, table := range store.tables {
+		if table.level == 0 {
+			count++
+			if count >= threshold {
+				newTable := Compact(append(tablesToCompact, table), table)
+				tablesToDelete = append(tablesToDelete, tablesToCompact...)
+				tablesToReplace = append(tablesToReplace, [2]*SSTable{table, newTable})
+				count = 0
+				tablesToCompact = []*SSTable{}
+			} else {
+				tablesToCompact = append(tablesToCompact, table)
+			}
+		}
+	}
+
+	// mut on tables here
+	for _, table := range tablesToDelete {
+		store.remove(table)
+	}
+
+	for _, table := range tablesToReplace {
+		store.replace(table[0], table[1])
+		os.Rename(table[1].name, strings.TrimSuffix(table[1].name, ".tmp"))
+	}
+	// release mut
 }

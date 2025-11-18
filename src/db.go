@@ -57,9 +57,11 @@ func (db *DB) Set(key int, value string) string {
 	valueBytes := StrToBytes(value)
 
 	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
-		newSegment := db.sstables.AddNew()
-		newSegment.Open()
-		db.memTable.Flush(newSegment)
+		newTable := db.sstables.AddNew()
+		newTable.Open()
+		db.memTable.Flush(newTable)
+		db.sstables.MaybeCompactL0()
+
 	}
 	db.memTable.Set(keyBytes, valueBytes)
 	return value
