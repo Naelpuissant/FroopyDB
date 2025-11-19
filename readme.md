@@ -80,7 +80,8 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [x] Log bin format 
 - [x] crash or start recovery WAL
 - [x] crash or start recovery SStables
-- [ ] compaction process
+- [x] compaction process L0
+- [ ] compaction process L1
 - [ ] parallel processing
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)

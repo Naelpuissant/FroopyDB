@@ -40,7 +40,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	defer t2.Close()
 
 	// Make sure we actually have 3 level-0 SSTables.
-	if len(store.Tables()) != 3 {
+	if len(store.Tables()[0]) != 3 {
 		t.Fatalf("expected 3 tables, got %d", len(store.Tables()))
 	}
 

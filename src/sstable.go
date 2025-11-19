@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -175,85 +176,111 @@ func (sst *SSTable) Index() map[[4]byte]uint32 {
 }
 
 type SSTableStore struct {
-	tables         []*SSTable // Map maybe better
+	tables         map[int][]*SSTable
+	maxLevels      int
 	folder         string
 	sstableMaxSize int
 }
 
 func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
-	tables := []*SSTable{}
+	maxLevels := 1
+	tables := map[int][]*SSTable{}
+	for i := range maxLevels {
+		tables[i] = []*SSTable{}
+	}
+
 	loadSSTablesFromFile(tables, folder)
+
 	return &SSTableStore{
 		tables:         tables,
+		maxLevels:      1,
 		folder:         folder,
 		sstableMaxSize: sstableMaxSize,
 	}
 }
 
-func loadSSTablesFromFile(tables []*SSTable, folder string) {
+func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) {
 	dir, _ := os.ReadDir(folder)
 
 	for _, entry := range dir {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
 			file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_RDONLY, 0777)
-			tables = append(tables, NewSSTableFromFile(file))
+			table := NewSSTableFromFile(file)
+			tables[table.level] = append(tables[table.level], table)
 		}
 	}
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
-	table := NewSSTable(store.folder, 0, len(store.tables), false, 0)
-	store.tables = append(store.tables, table)
+	table := NewSSTable(store.folder, 0, store.Len(), false, 0)
+	store.tables[0] = append(store.tables[0], table)
 	return table
 }
 
+func (store *SSTableStore) Len() int {
+	n := 0
+	for _, level := range store.tables {
+		n += len(level)
+	}
+	return n
+}
+
 func (store *SSTableStore) CloseAll() {
-	for _, table := range store.tables {
-		table.Close()
+	for _, level := range store.tables {
+		for _, table := range level {
+			table.Close()
+		}
 	}
 }
 
 func (store *SSTableStore) remove(sst *SSTable) {
-	for i := len(store.tables) - 1; i >= 0; i-- {
-		if store.tables[i].name == sst.name {
-			store.tables = append(store.tables[:i], store.tables[i+1:]...)
-			sst.Remove()
-			return
+	for i, level := range store.tables {
+		for j, table := range level {
+			if table.name == sst.name {
+				store.tables[i] = append(store.tables[i][:j], store.tables[i][j+1:]...)
+				sst.Remove()
+				return
+			}
 		}
 	}
 }
 
 func (store *SSTableStore) replace(old, new *SSTable) {
-	for i := len(store.tables) - 1; i >= 0; i-- {
-		if store.tables[i].name == old.name {
-			old.Remove()
-			store.tables[i] = new
-			// Keep it sorted... meh
-			// sort.Slice(store.tables, func(a, b int) bool {
-			// 	return store.tables[a].name < store.tables[b].name
-			// })
-			return
+	for i, level := range store.tables {
+		for _, table := range level {
+			if table.name == old.name {
+				old.Remove()
+				store.tables[i] = append(store.tables[i], new)
+				sort.Slice(level, func(a, b int) bool {
+					return level[a].name < level[b].name
+				})
+				return
+			}
 		}
 	}
 }
 
 func (store *SSTableStore) Search(key [4]byte) []byte {
-	for i := len(store.tables) - 1; i >= 0; i-- {
-		value := store.tables[i].Search(key)
-		if len(value) != 0 {
-			return value
+	for _, level := range store.tables {
+		for i := len(level) - 1; i >= 0; i-- {
+			value := level[i].Search(key)
+			if len(value) != 0 {
+				return value
+			}
 		}
 	}
 	return []byte{}
 }
 
 func (store *SSTableStore) DeleteIndex(key [4]byte) {
-	for _, table := range store.tables {
-		table.DeleteIndex(key)
+	for _, level := range store.tables {
+		for _, table := range level {
+			table.DeleteIndex(key)
+		}
 	}
 }
 
-func (store *SSTableStore) Tables() []*SSTable {
+func (store *SSTableStore) Tables() map[int][]*SSTable {
 	return store.tables
 }
 
@@ -265,29 +292,37 @@ func (store *SSTableStore) MaybeCompactL0() {
 	tablesToReplace := [][2]*SSTable{}
 
 	count := 0
-	for _, table := range store.tables {
-		if table.level == 0 {
-			count++
-			if count >= threshold {
-				newTable := Compact(append(tablesToCompact, table), table)
-				tablesToDelete = append(tablesToDelete, tablesToCompact...)
-				tablesToReplace = append(tablesToReplace, [2]*SSTable{table, newTable})
-				count = 0
-				tablesToCompact = []*SSTable{}
-			} else {
-				tablesToCompact = append(tablesToCompact, table)
+	for levelKey, level := range store.tables {
+		for _, table := range level {
+			// for now I only handle l0 compaction but I should handle higher levels
+			if levelKey == 0 {
+				count++
+				if count >= threshold {
+					newTable := Compact(append(tablesToCompact, table), table)
+					tablesToDelete = append(tablesToDelete, tablesToCompact...)
+					tablesToReplace = append(tablesToReplace, [2]*SSTable{table, newTable})
+					count = 0
+					tablesToCompact = []*SSTable{}
+				} else {
+					tablesToCompact = append(tablesToCompact, table)
+				}
 			}
 		}
 	}
 
-	// mut on tables here
 	for _, table := range tablesToDelete {
 		store.remove(table)
 	}
 
 	for _, table := range tablesToReplace {
 		store.replace(table[0], table[1])
-		os.Rename(table[1].name, strings.TrimSuffix(table[1].name, ".tmp"))
+		table[1].Rename(strings.TrimSuffix(table[1].name, ".tmp"))
 	}
-	// release mut
+}
+
+func (store *SSTableStore) MaybeCompactToL1() {
+	// TODO :
+	// for each n0 get min max keys
+	// for each n1 check that keys doesn't overlap
+	// compact if it's the case
 }
