@@ -90,7 +90,8 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] MMap potential use and benefits
-- [ ] Setup CI
+- [x] Setup CI
+- [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Recode everything in Rust
 
 

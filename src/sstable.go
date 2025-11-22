@@ -175,6 +175,28 @@ func (sst *SSTable) Index() map[[4]byte]uint32 {
 	return sst.index
 }
 
+func (sst *SSTable) GetMinMax() (int, int) {
+	if len(sst.index) == 0 {
+		return 0, 0
+	}
+
+	var minKey uint32 = ^uint32(0) // max possible uint32
+	var maxKey uint32 = 0
+
+	for keyBytes := range sst.index {
+		key := BytesToUint32(keyBytes[:])
+
+		if key < minKey {
+			minKey = key
+		}
+		if key > maxKey {
+			maxKey = key
+		}
+	}
+
+	return int(minKey), int(maxKey)
+}
+
 type SSTableStore struct {
 	tables         map[int][]*SSTable
 	maxLevels      int
@@ -234,10 +256,12 @@ func (store *SSTableStore) CloseAll() {
 }
 
 func (store *SSTableStore) remove(sst *SSTable) {
-	for i, level := range store.tables {
-		for j, table := range level {
+
+	level, found := store.tables[sst.level]
+	if found {
+		for i, table := range level {
 			if table.name == sst.name {
-				store.tables[i] = append(store.tables[i][:j], store.tables[i][j+1:]...)
+				store.tables[sst.level] = append(store.tables[sst.level][:i], store.tables[sst.level][i+1:]...)
 				sst.Remove()
 				return
 			}
@@ -246,18 +270,12 @@ func (store *SSTableStore) remove(sst *SSTable) {
 }
 
 func (store *SSTableStore) replace(old, new *SSTable) {
-	for i, level := range store.tables {
-		for _, table := range level {
-			if table.name == old.name {
-				old.Remove()
-				store.tables[i] = append(store.tables[i], new)
-				sort.Slice(level, func(a, b int) bool {
-					return level[a].name < level[b].name
-				})
-				return
-			}
-		}
-	}
+	old.Remove()
+	l := new.level
+	store.tables[l] = append(store.tables[l], new)
+	sort.Slice(store.tables[l], func(a, b int) bool {
+		return store.tables[l][a].name < store.tables[l][b].name
+	})
 }
 
 func (store *SSTableStore) Search(key [4]byte) []byte {
@@ -320,9 +338,40 @@ func (store *SSTableStore) MaybeCompactL0() {
 	}
 }
 
-func (store *SSTableStore) MaybeCompactToL1() {
-	// TODO :
-	// for each n0 get min max keys
-	// for each n1 check that keys doesn't overlap
-	// compact if it's the case
+func (store *SSTableStore) MaybeCompactToUpperLevel() {
+	tablesToDelete := []*SSTable{}
+	tablesToReplace := [][2]*SSTable{}
+
+	for i := range store.tables {
+		// we are at the top level
+		if i+1 > len(store.tables) {
+			return
+		}
+		tablesToCompact := []*SSTable{}
+		for _, l1 := range store.tables[i+1] {
+			l1min, l1max := l1.GetMinMax()
+			tablesToCompact = append(tablesToCompact, l1)
+			for _, l0 := range store.tables[i] {
+				l0min, l0max := l0.GetMinMax()
+				if l0max >= l1min && l0min <= l1max {
+					tablesToCompact = append(tablesToCompact, l0)
+					tablesToDelete = append(tablesToDelete, l0)
+
+					l1min = min(l0min, l1min)
+					l1max = max(l0max, l1max)
+				}
+			}
+			newTable := Compact(tablesToCompact, l1)
+			tablesToReplace = append(tablesToReplace, [2]*SSTable{l1, newTable})
+
+		}
+	}
+	for _, table := range tablesToDelete {
+		store.remove(table)
+	}
+
+	for _, table := range tablesToReplace {
+		store.replace(table[0], table[1])
+		table[1].Rename(strings.TrimSuffix(table[1].name, ".tmp"))
+	}
 }

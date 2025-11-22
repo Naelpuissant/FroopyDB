@@ -18,7 +18,6 @@ func Compact(tables []*SSTable, target *SSTable) *SSTable {
 		tmpSegment.WriteBlock(key, value)
 	}
 	tmpSegment.WriteIndices()
-	tmpSegment.Close()
 
 	return tmpSegment
 }
