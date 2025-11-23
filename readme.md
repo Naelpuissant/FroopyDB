@@ -30,7 +30,8 @@ klen uint16 | vlen uint 16 | key bytes | value bytes
 
 ## Compaction Process
 
-- Level based compaction (L0, L1, L2) 
+- Level based compaction (L0, L1) 
+- Triggered at each memtable flush
 - add level to file name ([level]_[incr].sst)
 - L0 files can have overlapping keys but higher levels can't
 - each sst write run compaction
@@ -38,8 +39,14 @@ klen uint16 | vlen uint 16 | key bytes | value bytes
     - if L1 and sst range overlap L1 -> merge in L1
     - else -> create L1 whith the oldest incr in name
 - keep ssts correctly ordered in the store
-- This shouldn't change the search method
 
+
+## Concurency
+
+- Write wal log
+- Flush memtable
+- Compaction
+- Keep lock time minimal
 
 ## Bench
 
@@ -54,6 +61,7 @@ BenchmarkGet-8             10000           2001152 ns/op
 PASS
 ok      froopydb/src    22.340s
 ```
+
 
 
 LSM tree based, skiplist memtable (1000B), wal, no compaction/no bloom filters/no parallel jobs (100 000 ops)
@@ -72,6 +80,22 @@ ok      froopydb/src    5.027s
 Since everything is done on a single thread we might have some heavy spikes on set when memtable is flushed
 
 
+
+Same config as before but with concurrent MemTable flush
+```
+goos: linux
+goarch: amd64
+pkg: froopydb/src
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkSet
+BenchmarkSet-8            100000             18330 ns/op
+BenchmarkGet
+BenchmarkGet-8            100000               331.7 ns/op
+PASS
+ok      froopydb/src    2.027s
+```
+It's getting really interresting, let's try to improve Set ops more and to add compaction concurrency. `WAL.Write` might be the thing to improve.
+
 ## TODO
 
 - [x] MemTable/log (skiplist)
@@ -81,12 +105,14 @@ Since everything is done on a single thread we might have some heavy spikes on s
 - [x] crash or start recovery WAL
 - [x] crash or start recovery SStables
 - [x] compaction process L0
-- [ ] compaction process L1
-- [ ] parallel processing
+- [x] compaction process L1
+- [x] Add concurrency Jobs for Flush
+- [ ] Add concurrency Jobs for Compaction
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] range queries
 - [ ] Think about splitting files for each sstable (data, index, metadata)
+- [ ] Add compaction scheduler background task
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] MMap potential use and benefits

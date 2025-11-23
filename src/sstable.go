@@ -175,6 +175,12 @@ func (sst *SSTable) Index() map[[4]byte]uint32 {
 	return sst.index
 }
 
+func (sst *SSTable) Ready() {
+	old := sst.name
+	sst.name = strings.TrimSuffix(sst.name, ".tmp")
+	os.Rename(old, sst.name)
+}
+
 func (sst *SSTable) GetMinMax() (int, int) {
 	if len(sst.index) == 0 {
 		return 0, 0
@@ -231,6 +237,11 @@ func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) {
 			tables[table.level] = append(tables[table.level], table)
 		}
 	}
+}
+
+func (store *SSTableStore) Add(sst *SSTable) *SSTable {
+	store.tables[sst.level] = append(store.tables[sst.level], sst)
+	return sst
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
@@ -333,8 +344,8 @@ func (store *SSTableStore) MaybeCompactL0() {
 	}
 
 	for _, table := range tablesToReplace {
+		table[1].Ready()
 		store.replace(table[0], table[1])
-		table[1].Rename(strings.TrimSuffix(table[1].name, ".tmp"))
 	}
 }
 

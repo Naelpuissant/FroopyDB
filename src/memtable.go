@@ -2,6 +2,7 @@ package src
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,26 +16,28 @@ type WAL struct {
 	file   *os.File
 }
 
-func openLogFile(folder string) *os.File {
-	dir, _ := os.ReadDir(folder)
+func openLogFile(folder string, tryRecover bool) *os.File {
+	if tryRecover {
+		dir, _ := os.ReadDir(folder)
 
-	for _, entry := range dir {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
-			file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_APPEND|os.O_RDWR, 0777)
-			return file
+		for _, entry := range dir {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
+				file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_APPEND|os.O_RDWR, 0777)
+				return file
+			}
 		}
 	}
 
 	now := time.Now().UnixMilli()
-	filename := fmt.Sprintf("%d.log", now)
+	filename := fmt.Sprintf("%d_%d.log", now, rand.Intn(10000))
 	path := filepath.Join(folder, filename)
 	file, _ := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
 
 	return file
 }
 
-func NewWAL(folder string) *WAL {
-	file := openLogFile(folder)
+func NewWAL(folder string, tryRecover bool) *WAL {
+	file := openLogFile(folder, tryRecover)
 	return &WAL{
 		folder: folder,
 		file:   file,
@@ -51,9 +54,15 @@ func (wal *WAL) Write(key, value []byte) {
 	wal.file.Write(value)
 }
 
-func (wal *WAL) Reset() {
+// Close and remove log file
+func (wal *WAL) Finish() {
+	wal.file.Close()
 	os.Remove(wal.file.Name())
-	wal.file = openLogFile(wal.folder)
+}
+
+// Mark log file as immutable by adding .imm prefix
+func (wal *WAL) Immutable() {
+	os.Rename(wal.file.Name(), wal.file.Name()+".imm")
 }
 
 func (wal *WAL) getFileSize() int64 {
@@ -62,11 +71,10 @@ func (wal *WAL) getFileSize() int64 {
 }
 
 type MemTable struct {
-	maxSize         int //Bytes
-	size            int //Bytes
-	logger          *WAL
-	store           *skiplist.SkipList
-	immutableStores []*skiplist.SkipList
+	maxSize int //Bytes
+	size    int //Bytes
+	logger  *WAL
+	store   *skiplist.SkipList
 }
 
 func NewMemTable(maxSize int, logger *WAL) *MemTable {
@@ -117,27 +125,20 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 	}
 
 	if offset != fsize {
-		panic("Failed to recover memtable")
+		panic(fmt.Sprintf("Failed to recover memtable: %d/%d\n", offset, fsize))
 	}
 
 	println(file.Name() + " : memtable recovered")
 	return memTableSize
 }
 
-func (m *MemTable) Flush(seg *SSTable) {
-	// Aptent to start parallel sstable write
-	////
-	currStore := m.store
-	m.immutableStores = append(m.immutableStores, currStore)
-	////
-	m.store = skiplist.New(skiplist.Bytes)
-
-	for elem := currStore.Front(); elem != nil; elem = elem.Next() {
-		seg.WriteBlock(([4]byte)(elem.Key().([]byte)), elem.Value.([]byte))
+func (m *MemTable) Flush(sst *SSTable) {
+	for elem := m.store.Front(); elem != nil; elem = elem.Next() {
+		sst.WriteBlock(([4]byte)(elem.Key().([]byte)), elem.Value.([]byte))
 	}
-	seg.WriteIndices()
-	m.logger.Reset()
-	m.size = 0
+	sst.WriteIndices()
+	m.logger.Finish()
+	sst.Ready()
 }
 
 func (m *MemTable) Set(key, value []byte) {
