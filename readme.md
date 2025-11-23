@@ -88,13 +88,13 @@ goarch: amd64
 pkg: froopydb/src
 cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
 BenchmarkSet
-BenchmarkSet-8            100000             18330 ns/op
+BenchmarkSet-8            100000             17559 ns/op
 BenchmarkGet
-BenchmarkGet-8            100000               331.7 ns/op
+BenchmarkGet-8            100000               381.1 ns/op
 PASS
-ok      froopydb/src    2.027s
+ok      froopydb/src    1.935s
 ```
-It's getting really interresting, let's try to improve Set ops more and to add compaction concurrency. `WAL.Write` might be the thing to improve.
+It's getting really interresting, lets add compaction concurrency.
 
 ## TODO
 
@@ -106,8 +106,9 @@ It's getting really interresting, let's try to improve Set ops more and to add c
 - [x] crash or start recovery SStables
 - [x] compaction process L0
 - [x] compaction process L1
-- [x] Add concurrency Jobs for Flush
-- [ ] Add concurrency Jobs for Compaction
+- [x] Add concurrency for Flush
+- [x] Add concurrency for Wal Write
+- [ ] Add concurrency for Compaction
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] range queries

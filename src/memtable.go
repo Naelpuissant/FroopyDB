@@ -1,6 +1,7 @@
 package src
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,8 +13,9 @@ import (
 )
 
 type WAL struct {
-	folder string
-	file   *os.File
+	folder  string
+	file    *os.File
+	writeCh chan []byte
 }
 
 func openLogFile(folder string, tryRecover bool) *os.File {
@@ -38,9 +40,18 @@ func openLogFile(folder string, tryRecover bool) *os.File {
 
 func NewWAL(folder string, tryRecover bool) *WAL {
 	file := openLogFile(folder, tryRecover)
-	return &WAL{
-		folder: folder,
-		file:   file,
+	wal := &WAL{
+		folder:  folder,
+		file:    file,
+		writeCh: make(chan []byte),
+	}
+	go wal.writer()
+	return wal
+}
+
+func (wal *WAL) writer() {
+	for record := range wal.writeCh {
+		wal.file.Write(record)
 	}
 }
 
@@ -48,10 +59,13 @@ func (wal *WAL) Write(key, value []byte) {
 	klen := Uint16ToBytes(uint16(len(key)))
 	vlen := Uint16ToBytes(uint16(len(value)))
 
-	wal.file.Write(klen)
-	wal.file.Write(vlen)
-	wal.file.Write(key)
-	wal.file.Write(value)
+	var buf bytes.Buffer
+	buf.Write(klen)
+	buf.Write(vlen)
+	buf.Write(key)
+	buf.Write(value)
+
+	wal.writeCh <- buf.Bytes()
 }
 
 // Close and remove log file
