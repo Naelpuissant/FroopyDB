@@ -43,13 +43,12 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 
 	sstables := NewSSTableStore(folder, sstableMaxSize)
 
-	maxFlushJobs := 5
 	db := &DB{
 		folder:       folder,
 		memTable:     memTable,
 		immMemTables: []*MemTable{},
 		sstables:     sstables,
-		flushJobs:    make(chan *MemTable, maxFlushJobs),
+		flushJobs:    make(chan *MemTable),
 	}
 
 	go db.flushWorker()
@@ -69,9 +68,6 @@ func (db *DB) Set(key int, value string) string {
 		old := db.memTable
 		db.flushJobs <- old
 		db.memTable = NewMemTable(old.maxSize, NewWAL(db.folder, false))
-
-		// db.sstables.MaybeCompactToUpperLevel()
-		// db.sstables.MaybeCompactL0()
 	}
 	db.memTable.Set(keyBytes, valueBytes)
 	return value
@@ -115,10 +111,16 @@ func (db *DB) flushWorker() {
 	for mt := range db.flushJobs {
 		db.immMemTables = append(db.immMemTables, mt)
 		mt.logger.Immutable()
+
 		newTable := NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
 		newTable.Open()
 		mt.Flush(newTable)
 		db.removeImmMemTable(mt)
+		db.sstables.Add(newTable)
+
+		// Compact
+		db.sstables.MaybeCompactToUpperLevel()
+		db.sstables.MaybeCompactL0()
 	}
 }
 

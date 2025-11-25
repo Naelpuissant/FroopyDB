@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type SSTable struct {
@@ -96,7 +97,7 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 	folder, level, incr := parseSSTableName(file.Name())
 	return &SSTable{
 		size:   int(indexBlockSize),
-		folder: folder, // todo : fix this
+		folder: folder,
 		level:  level,
 		incr:   incr,
 		name:   file.Name(),
@@ -179,6 +180,7 @@ func (sst *SSTable) Ready() {
 	old := sst.name
 	sst.name = strings.TrimSuffix(sst.name, ".tmp")
 	os.Rename(old, sst.name)
+	sst.file.Sync()
 }
 
 func (sst *SSTable) GetMinMax() (int, int) {
@@ -205,15 +207,16 @@ func (sst *SSTable) GetMinMax() (int, int) {
 
 type SSTableStore struct {
 	tables         map[int][]*SSTable
-	maxLevels      int
+	maxLevel       int
 	folder         string
 	sstableMaxSize int
+	mu             sync.Mutex
 }
 
 func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
-	maxLevels := 1
+	maxLevel := 1
 	tables := map[int][]*SSTable{}
-	for i := range maxLevels {
+	for i := range maxLevel {
 		tables[i] = []*SSTable{}
 	}
 
@@ -221,7 +224,7 @@ func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
 
 	return &SSTableStore{
 		tables:         tables,
-		maxLevels:      1,
+		maxLevel:       1,
 		folder:         folder,
 		sstableMaxSize: sstableMaxSize,
 	}
@@ -267,6 +270,8 @@ func (store *SSTableStore) CloseAll() {
 }
 
 func (store *SSTableStore) remove(sst *SSTable) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
 
 	level, found := store.tables[sst.level]
 	if found {
@@ -281,12 +286,16 @@ func (store *SSTableStore) remove(sst *SSTable) {
 }
 
 func (store *SSTableStore) replace(old, new *SSTable) {
-	old.Remove()
-	l := new.level
-	store.tables[l] = append(store.tables[l], new)
-	sort.Slice(store.tables[l], func(a, b int) bool {
-		return store.tables[l][a].name < store.tables[l][b].name
+	store.remove(old)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	store.tables[new.level] = append(store.tables[new.level], new)
+	sort.Slice(store.tables[new.level], func(a, b int) bool {
+		return store.tables[new.level][a].name < store.tables[new.level][b].name
 	})
+
 }
 
 func (store *SSTableStore) Search(key [4]byte) []byte {
@@ -377,6 +386,7 @@ func (store *SSTableStore) MaybeCompactToUpperLevel() {
 
 		}
 	}
+
 	for _, table := range tablesToDelete {
 		store.remove(table)
 	}

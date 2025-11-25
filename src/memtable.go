@@ -71,7 +71,7 @@ func (wal *WAL) Write(key, value []byte) {
 // Close and remove log file
 func (wal *WAL) Finish() {
 	wal.file.Close()
-	os.Remove(wal.file.Name())
+	os.Remove(wal.file.Name() + ".imm")
 }
 
 // Mark log file as immutable by adding .imm prefix

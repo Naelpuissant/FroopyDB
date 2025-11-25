@@ -108,10 +108,11 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] compaction process L1
 - [x] Add concurrency for Flush
 - [x] Add concurrency for Wal Write
-- [ ] Add concurrency for Compaction
+- [x] Add concurrency for Compaction
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] range queries
+- [ ] only works with bytes and allow more or less than 4 bytes keys
 - [ ] Think about splitting files for each sstable (data, index, metadata)
 - [ ] Add compaction scheduler background task
 - [ ] Bloom filter
