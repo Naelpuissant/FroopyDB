@@ -1,7 +1,7 @@
-package src_test
+package froopydb_test
 
 import (
-	"froopydb/src"
+	src "froopydb"
 	"os"
 	"path/filepath"
 	"testing"

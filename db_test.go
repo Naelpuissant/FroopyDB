@@ -1,16 +1,16 @@
-package src_test
+package froopydb_test
 
 import (
-	"froopydb/src"
+	fpdb "froopydb"
 	"os"
 	"testing"
 )
 
-var db *src.DB
+var db *fpdb.DB
 
 func TestMain(m *testing.M) {
-	os.RemoveAll("../db/test")
-	db = src.NewDB("../db/test", 5, src.KB*128, true)
+	os.RemoveAll("./db/test")
+	db = fpdb.NewDB("./db/test", 5, fpdb.KB*128, true)
 
 	code := m.Run()
 
@@ -53,9 +53,10 @@ func TestDelete(t *testing.T) {
 }
 
 func TestCompactAndMerge(t *testing.T) {
-	//resetDB(db)
+	os.RemoveAll("../db/test")
+	db = fpdb.NewDB("../db/test", 5, 100, true)
 	for i := range 100 {
-		db.Set(i+2, "pad")
+		db.Set(i, "pad")
 	}
 
 	db.Set(1, "foo")
@@ -68,6 +69,11 @@ func TestCompactAndMerge(t *testing.T) {
 	result := db.Get(1)
 	if result != "foo" {
 		t.Fatalf("Key 1 must foo: %s", result)
+	}
+
+	result = db.Get(3)
+	if result != "" {
+		t.Fatalf("Key 3 must be deleted: %s", result)
 	}
 }
 

@@ -1,4 +1,4 @@
-package src
+package froopydb
 
 import (
 	"fmt"
@@ -383,7 +383,6 @@ func (store *SSTableStore) MaybeCompactToUpperLevel() {
 			}
 			newTable := Compact(tablesToCompact, l1)
 			tablesToReplace = append(tablesToReplace, [2]*SSTable{l1, newTable})
-
 		}
 	}
 

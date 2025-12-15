@@ -1,4 +1,4 @@
-package src
+package froopydb
 
 func Compact(tables []*SSTable, target *SSTable) *SSTable {
 	compactedTable := map[[4]byte][]byte{}
