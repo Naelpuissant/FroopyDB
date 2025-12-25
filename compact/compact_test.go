@@ -70,7 +70,10 @@ func TestMaybeCompactL0(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open new sstable: %v", err)
 	}
-	newTable := table.NewSSTableFromFile(f)
+	newTable, err := table.NewSSTableFromFile(f)
+	if err != nil {
+		t.Fatalf("failed to load new sstable: %v", err)
+	}
 
 	if len(newTable.Index()) != 3 {
 		t.Fatalf("expected 3 keys in merged sstable, got %d", len(newTable.Index()))
@@ -83,8 +86,11 @@ func TestMaybeCompactL0(t *testing.T) {
 	}
 
 	for key, expected := range tests {
-		value := string(newTable.Search(key))
-		if value != expected {
+		value, err := newTable.Search(key)
+		if err != nil {
+			t.Fatalf("failed to search key %v: %v", key, err)
+		}
+		if string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
 		}
 	}

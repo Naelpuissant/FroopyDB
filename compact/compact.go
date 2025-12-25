@@ -11,7 +11,11 @@ func Compact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	for _, table := range tables {
 		table.ResetFilePointer()
 		for idx := range table.Index() {
-			compactedTable[idx] = table.Search(idx)
+			value, err := table.Search(idx)
+			if err != nil {
+				panic(err) // TODO: handle error properly
+			}
+			compactedTable[idx] = value
 		}
 	}
 

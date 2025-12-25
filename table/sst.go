@@ -1,6 +1,7 @@
 package table
 
 import (
+	"bufio"
 	"fmt"
 	"froopydb/x"
 	"io"
@@ -10,16 +11,6 @@ import (
 	"strings"
 )
 
-type SSTable struct {
-	name   string
-	folder string
-	level  int
-	incr   int
-	size   int
-	file   *os.File
-	index  map[[4]byte]uint32 // uint32 key
-}
-
 func newSSTableName(folder string, level int, incr int, tmp bool) string {
 	prefix := ".sst"
 	if tmp {
@@ -27,18 +18,6 @@ func newSSTableName(folder string, level int, incr int, tmp bool) string {
 	}
 	filename := fmt.Sprintf("%d_%d%s", level, incr, prefix)
 	return filepath.Join(folder, filename)
-}
-
-func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
-	name := newSSTableName(folder, level, incr, tmp)
-	return &SSTable{
-		name:   name,
-		folder: folder,
-		level:  level,
-		incr:   incr,
-		size:   size,
-		index:  map[[4]byte]uint32{},
-	}
 }
 
 // ParseSSTableName parses "<folder>/<level>_<incr>.sst"
@@ -58,8 +37,33 @@ func parseSSTableName(path string) (folder string, level int, incr int) {
 	return folder, level, incr
 }
 
-func NewSSTableFromFile(file *os.File) *SSTable {
-	fstat, _ := file.Stat()
+type SSTable struct {
+	name   string
+	folder string
+	level  int
+	incr   int
+	size   int
+	file   *os.File
+	index  map[[4]byte]uint32 // uint32 key
+}
+
+func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
+	name := newSSTableName(folder, level, incr, tmp)
+	return &SSTable{
+		name:   name,
+		folder: folder,
+		level:  level,
+		incr:   incr,
+		size:   size,
+		index:  map[[4]byte]uint32{},
+	}
+}
+
+func NewSSTableFromFile(file *os.File) (*SSTable, error) {
+	fstat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
 	end := fstat.Size()
 
 	endOffset := end - 4
@@ -89,10 +93,10 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 	}
 
 	if startOffset != endOffset {
-		panic("Failed to recover sstable")
+		return nil, fmt.Errorf("failed to recover sstable index: %d/%d", startOffset, endOffset)
 	}
 
-	println(file.Name() + " : sstable recovered")
+	println(file.Name() + " : sstable recovered") // TODO: debug logger
 
 	folder, level, incr := parseSSTableName(file.Name())
 	return &SSTable{
@@ -103,41 +107,68 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 		name:   file.Name(),
 		index:  index,
 		file:   file,
-	}
+	}, nil
 }
 
-func (sst *SSTable) WriteBlock(key [4]byte, value []byte) {
+func (sst *SSTable) WriteBlock(key [4]byte, value []byte) error {
 	offset, _ := sst.file.Seek(0, io.SeekCurrent)
-
+	w := bufio.NewWriter(sst.file)
 	vlen := x.Uint16ToBytes(uint16(len(value)))
 
-	sst.file.Write(vlen)
-	sst.file.Write(value)
+	if _, err := w.Write(vlen); err != nil {
+		return err
+	}
+	if _, err := w.Write(value); err != nil {
+		return err
+	}
 
 	if len(value) != 0 && value[0] != 0x00 {
 		sst.index[key] = uint32(offset)
 	}
 
 	sst.size += 16 + len(value)
+
+	return w.Flush()
 }
 
-func (sst *SSTable) WriteIndices() {
-	indexOffset, _ := sst.file.Seek(0, io.SeekCurrent)
+func (sst *SSTable) WriteIndices() error {
+	indexOffset, err := sst.file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+
+	w := bufio.NewWriter(sst.file)
+
 	for key, offset := range sst.index {
 		klen := x.Uint16ToBytes(uint16(len(key)))
-		sst.file.Write(klen)
-		sst.file.Write(key[:])
-		sst.file.Write(x.Uint32ToBytes(offset))
+		if _, err := w.Write(klen); err != nil {
+			return err
+		}
+		if _, err := w.Write(key[:]); err != nil {
+			return err
+		}
+		if _, err := w.Write(x.Uint32ToBytes(offset)); err != nil {
+			return err
+		}
 		sst.size += 16 + len(key) + 32
 	}
-	sst.file.Write(x.Uint32ToBytes(uint32(indexOffset)))
+
+	if _, err := w.Write(x.Uint32ToBytes(uint32(indexOffset))); err != nil {
+		return err
+	}
+
 	sst.size += 32
+
+	return w.Flush()
 }
 
-func (sst *SSTable) Open() *os.File {
-	file, _ := os.OpenFile(sst.name, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+func (sst *SSTable) Open() (*os.File, error) {
+	file, err := os.OpenFile(sst.name, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		return nil, err
+	}
 	sst.file = file
-	return file
+	return file, nil
 }
 
 func (sst *SSTable) Close() {
@@ -158,26 +189,36 @@ func (sst *SSTable) DeleteIndex(key [4]byte) {
 	delete(sst.index, key)
 }
 
-func (sst *SSTable) Search(key [4]byte) []byte {
+func (sst *SSTable) Search(key [4]byte) ([]byte, error) {
 	offset, found := sst.index[key]
 	if !found {
-		return []byte{}
+		return []byte{}, nil
 	}
+
 	vlen := make([]byte, 2)
-	sst.file.ReadAt(vlen, int64(offset))
+	if _, err := sst.file.ReadAt(vlen, int64(offset)); err != nil {
+		return []byte{}, err
+	}
 
 	value := make([]byte, x.BytesToUint16(vlen))
-	sst.file.ReadAt(value, int64(offset)+2)
+	if _, err := sst.file.ReadAt(value, int64(offset)+2); err != nil {
+		return []byte{}, err
+	}
 
-	return value
+	return value, nil
 }
 
-func (sst *SSTable) Ready() {
+func (sst *SSTable) Ready() error {
 	oldName := sst.name
 	sst.name = strings.TrimSuffix(sst.name, ".tmp")
-	os.Rename(oldName, sst.name)
-	sst.file.Sync()
-	sst.setReadOnly()
+	if err := os.Rename(oldName, sst.name); err != nil {
+		return err
+	}
+	if err := sst.file.Sync(); err != nil {
+		return err
+	}
+	err := sst.setReadOnly()
+	return err
 }
 
 func (sst *SSTable) setReadOnly() error {
@@ -191,6 +232,8 @@ func (sst *SSTable) setReadOnly() error {
 	return nil
 }
 
+// Get min and max keys in the SSTable
+// Might want to store this metadata elsewhere later
 func (sst *SSTable) GetMinMax() (int, int) {
 	if len(sst.index) == 0 {
 		return 0, 0

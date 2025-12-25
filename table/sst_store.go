@@ -1,6 +1,7 @@
 package table
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,7 +24,10 @@ func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
 		tables[i] = []*SSTable{}
 	}
 
-	loadSSTablesFromFile(tables, folder)
+	err := loadSSTablesFromFile(tables, folder)
+	if err != nil {
+		panic(fmt.Errorf("failed to load SSTables from %s: %v", folder, err))
+	}
 
 	return &SSTableStore{
 		tables:         tables,
@@ -33,16 +37,20 @@ func NewSSTableStore(folder string, sstableMaxSize int) *SSTableStore {
 	}
 }
 
-func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) {
+func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) error {
 	dir, _ := os.ReadDir(folder)
 
 	for _, entry := range dir {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
 			file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_RDONLY, 0777)
-			table := NewSSTableFromFile(file)
+			table, err := NewSSTableFromFile(file)
+			if err != nil {
+				return err
+			}
 			tables[table.level] = append(tables[table.level], table)
 		}
 	}
+	return nil
 }
 
 func (store *SSTableStore) Add(sst *SSTable) *SSTable {
@@ -103,7 +111,10 @@ func (store *SSTableStore) Replace(old, new *SSTable) {
 func (store *SSTableStore) Search(key [4]byte) []byte {
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
-			value := level[i].Search(key)
+			value, err := level[i].Search(key)
+			if err != nil {
+				panic(err) // TODO: handle error properly
+			}
 			if len(value) != 0 {
 				return value
 			}
