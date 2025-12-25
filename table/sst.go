@@ -172,15 +172,23 @@ func (sst *SSTable) Search(key [4]byte) []byte {
 	return value
 }
 
-func (sst *SSTable) Index() map[[4]byte]uint32 {
-	return sst.index
+func (sst *SSTable) Ready() {
+	oldName := sst.name
+	sst.name = strings.TrimSuffix(sst.name, ".tmp")
+	os.Rename(oldName, sst.name)
+	sst.file.Sync()
+	sst.setReadOnly()
 }
 
-func (sst *SSTable) Ready() {
-	old := sst.name
-	sst.name = strings.TrimSuffix(sst.name, ".tmp")
-	os.Rename(old, sst.name)
-	sst.file.Sync()
+func (sst *SSTable) setReadOnly() error {
+	file, err := os.OpenFile(sst.name, os.O_RDONLY, 0777)
+	if err != nil {
+		return err
+	}
+	wFile := sst.file
+	sst.file = file
+	wFile.Close()
+	return nil
 }
 
 func (sst *SSTable) GetMinMax() (int, int) {
@@ -205,6 +213,14 @@ func (sst *SSTable) GetMinMax() (int, int) {
 	return int(minKey), int(maxKey)
 }
 
+func (sst *SSTable) ResetFilePointer() {
+	sst.file.Seek(0, io.SeekStart)
+}
+
+func (sst *SSTable) Index() map[[4]byte]uint32 {
+	return sst.index
+}
+
 func (sst *SSTable) Folder() string {
 	return sst.folder
 }
@@ -215,8 +231,4 @@ func (sst *SSTable) Incr() int {
 
 func (sst *SSTable) Name() string {
 	return sst.name
-}
-
-func (sst *SSTable) ResetFilePointer() {
-	sst.file.Seek(0, io.SeekStart)
 }

@@ -110,8 +110,8 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Add concurrency for Wal Write
 - [x] Add concurrency for Compaction
 - [x] Clear split of files for better unit testing (wal, memtable, sst, db)
-- [ ] Continue split big files (wal, memtable, sst, db)
-- [ ] Add separeted parser for sstable
+- [x] Continue split big files (wal, memtable, sst, db)
+- [ ] Add separeted parser for sstable (to dig)
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] Add unit testing
