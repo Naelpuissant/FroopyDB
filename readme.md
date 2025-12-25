@@ -109,15 +109,17 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Add concurrency for Flush
 - [x] Add concurrency for Wal Write
 - [x] Add concurrency for Compaction
+- [ ] Clear split of files for better unit testing (wal, memtable, sst, db)
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
 - [ ] range queries
-- [ ] only works with bytes and allow more or less than 4 bytes keys
+- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
+- [ ] only works with bytes and allow more or less than 4 bytes keys (maybe useless with types)
 - [ ] Think about splitting files for each sstable (data, index, metadata)
-- [ ] Add compaction scheduler background task
+- [ ] Create a clear api for user compaction (compaction should be called by the user)
 - [ ] Bloom filter
 - [ ] Skiplist custom
-- [ ] MMap potential use and benefits
+- [ ] Study MMap potential use and benefits
 - [x] Setup CI
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Recode everything in Rust

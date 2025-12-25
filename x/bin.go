@@ -1,4 +1,4 @@
-package froopydb
+package x
 
 import (
 	"encoding/binary"

@@ -53,8 +53,9 @@ func TestDelete(t *testing.T) {
 }
 
 func TestCompactAndMerge(t *testing.T) {
-	os.RemoveAll("../db/test")
-	db = fpdb.NewDB("../db/test", 5, 100, true)
+	os.RemoveAll("./test/db")
+	olddb := db
+	db = fpdb.NewDB("./test/db", 5, 100, true)
 	for i := range 100 {
 		db.Set(i, "pad")
 	}
@@ -75,6 +76,7 @@ func TestCompactAndMerge(t *testing.T) {
 	if result != "" {
 		t.Fatalf("Key 3 must be deleted: %s", result)
 	}
+	db = olddb
 }
 
 func BenchmarkSet(b *testing.B) {

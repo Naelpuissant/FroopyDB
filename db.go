@@ -1,6 +1,9 @@
 package froopydb
 
 import (
+	"froopydb/compact"
+	t "froopydb/table"
+	"froopydb/x"
 	"os"
 	"sync"
 )
@@ -12,12 +15,12 @@ var (
 
 type DB struct {
 	folder   string
-	sstables *SSTableStore
+	sstables *t.SSTableStore
 
-	memTable     *MemTable
+	memTable     *t.MemTable
 	immMu        sync.Mutex
-	immMemTables []*MemTable
-	flushJobs    chan *MemTable
+	immMemTables []*t.MemTable
+	flushJobs    chan *t.MemTable
 }
 
 func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool) *DB {
@@ -34,21 +37,21 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 	}
 	os.MkdirAll(folder, 0777)
 
-	logger := NewWAL(folder, false)
+	logger := t.NewWAL(folder, false)
 
-	memTable := NewMemTable(
+	memTable := t.NewMemTable(
 		memTableMaxSize,
 		logger,
 	)
 
-	sstables := NewSSTableStore(folder, sstableMaxSize)
+	sstables := t.NewSSTableStore(folder, sstableMaxSize)
 
 	db := &DB{
 		folder:       folder,
 		memTable:     memTable,
-		immMemTables: []*MemTable{},
+		immMemTables: []*t.MemTable{},
 		sstables:     sstables,
-		flushJobs:    make(chan *MemTable),
+		flushJobs:    make(chan *t.MemTable),
 	}
 
 	go db.flushWorker()
@@ -61,13 +64,13 @@ func (db *DB) Close() {
 }
 
 func (db *DB) Set(key int, value string) string {
-	keyBytes := Uint32ToBytes(uint32(key))
-	valueBytes := StrToBytes(value)
+	keyBytes := x.Uint32ToBytes(uint32(key))
+	valueBytes := x.StrToBytes(value)
 
 	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
 		old := db.memTable
 		db.flushJobs <- old
-		db.memTable = NewMemTable(old.maxSize, NewWAL(db.folder, false))
+		db.memTable = t.NewMemTable(old.MaxSize(), t.NewWAL(db.folder, false))
 	}
 	db.memTable.Set(keyBytes, valueBytes)
 	return value
@@ -86,7 +89,7 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 }
 
 func (db *DB) Get(key int) string {
-	keyBytes := Uint32ToBytes(uint32(key))
+	keyBytes := x.Uint32ToBytes(uint32(key))
 
 	value, found := db.memTable.Get(keyBytes)
 	if found {
@@ -103,32 +106,33 @@ func (db *DB) Get(key int) string {
 
 func (db *DB) Delete(key int) string {
 	line := db.Set(key, "\x00")
-	db.sstables.DeleteIndex(([4]byte)(Uint32ToBytes(uint32(key))))
+	db.sstables.DeleteIndex(([4]byte)(x.Uint32ToBytes(uint32(key))))
 	return line
 }
 
 func (db *DB) flushWorker() {
 	for mt := range db.flushJobs {
 		db.immMemTables = append(db.immMemTables, mt)
-		mt.logger.Immutable()
+		mt.SetLoggerImmutable()
 
-		newTable := NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
+		newTable := t.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
 		newTable.Open()
 		mt.Flush(newTable)
-		db.removeImmMemTable(mt)
 		db.sstables.Add(newTable)
 
+		db.removeImmMemTable(mt)
+
 		// Compact
-		db.sstables.MaybeCompactToUpperLevel()
-		db.sstables.MaybeCompactL0()
+		compact.MaybeCompactToUpperLevel(db.sstables)
+		compact.MaybeCompactL0(db.sstables)
 	}
 }
 
-func (db *DB) removeImmMemTable(mt *MemTable) {
+func (db *DB) removeImmMemTable(mt *t.MemTable) {
 	db.immMu.Lock()
 	defer db.immMu.Unlock()
 
-	newImmMemTables := []*MemTable{}
+	newImmMemTables := []*t.MemTable{}
 	for _, immt := range db.immMemTables {
 		if immt != mt {
 			newImmMemTables = append(newImmMemTables, mt)
@@ -137,6 +141,6 @@ func (db *DB) removeImmMemTable(mt *MemTable) {
 	db.immMemTables = newImmMemTables
 }
 
-func (db *DB) ImmMemTables() []*MemTable {
+func (db *DB) ImmMemTables() []*t.MemTable {
 	return db.immMemTables
 }

@@ -1,7 +1,8 @@
-package froopydb
+package table
 
 import (
 	"fmt"
+	"froopydb/x"
 	"io"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 	startOffsetBytes := make([]byte, 4)
 	file.ReadAt(startOffsetBytes, endOffset)
 
-	startOffset := int64(BytesToUint32(startOffsetBytes))
+	startOffset := int64(x.BytesToUint32(startOffsetBytes))
 	indexBlockSize := startOffset
 
 	index := map[[4]byte]uint32{}
@@ -76,7 +77,7 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 		file.ReadAt(klenBytes, startOffset)
 		startOffset += 2
 
-		klen := BytesToUint16(klenBytes)
+		klen := x.BytesToUint16(klenBytes)
 		key := make([]byte, klen)
 		file.ReadAt(key, startOffset)
 		startOffset += int64(klen)
@@ -85,7 +86,7 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 		file.ReadAt(offset, startOffset)
 		startOffset += 4
 
-		index[[4]byte(key)] = BytesToUint32(offset)
+		index[[4]byte(key)] = x.BytesToUint32(offset)
 	}
 
 	if startOffset != endOffset {
@@ -109,7 +110,7 @@ func NewSSTableFromFile(file *os.File) *SSTable {
 func (sst *SSTable) WriteBlock(key [4]byte, value []byte) {
 	offset, _ := sst.file.Seek(0, io.SeekCurrent)
 
-	vlen := Uint16ToBytes(uint16(len(value)))
+	vlen := x.Uint16ToBytes(uint16(len(value)))
 
 	sst.file.Write(vlen)
 	sst.file.Write(value)
@@ -124,13 +125,13 @@ func (sst *SSTable) WriteBlock(key [4]byte, value []byte) {
 func (sst *SSTable) WriteIndices() {
 	indexOffset, _ := sst.file.Seek(0, io.SeekCurrent)
 	for key, offset := range sst.index {
-		klen := Uint16ToBytes(uint16(len(key)))
+		klen := x.Uint16ToBytes(uint16(len(key)))
 		sst.file.Write(klen)
 		sst.file.Write(key[:])
-		sst.file.Write(Uint32ToBytes(offset))
+		sst.file.Write(x.Uint32ToBytes(offset))
 		sst.size += 16 + len(key) + 32
 	}
-	sst.file.Write(Uint32ToBytes(uint32(indexOffset)))
+	sst.file.Write(x.Uint32ToBytes(uint32(indexOffset)))
 	sst.size += 32
 }
 
@@ -166,7 +167,7 @@ func (sst *SSTable) Search(key [4]byte) []byte {
 	vlen := make([]byte, 2)
 	sst.file.ReadAt(vlen, int64(offset))
 
-	value := make([]byte, BytesToUint16(vlen))
+	value := make([]byte, x.BytesToUint16(vlen))
 	sst.file.ReadAt(value, int64(offset)+2)
 
 	return value
@@ -192,7 +193,7 @@ func (sst *SSTable) GetMinMax() (int, int) {
 	var maxKey uint32 = 0
 
 	for keyBytes := range sst.index {
-		key := BytesToUint32(keyBytes[:])
+		key := x.BytesToUint32(keyBytes[:])
 
 		if key < minKey {
 			minKey = key
@@ -203,6 +204,22 @@ func (sst *SSTable) GetMinMax() (int, int) {
 	}
 
 	return int(minKey), int(maxKey)
+}
+
+func (sst *SSTable) Folder() string {
+	return sst.folder
+}
+
+func (sst *SSTable) Incr() int {
+	return sst.incr
+}
+
+func (sst *SSTable) Name() string {
+	return sst.name
+}
+
+func (sst *SSTable) ResetFilePointer() {
+	sst.file.Seek(0, io.SeekStart)
 }
 
 type SSTableStore struct {
@@ -269,7 +286,7 @@ func (store *SSTableStore) CloseAll() {
 	}
 }
 
-func (store *SSTableStore) remove(sst *SSTable) {
+func (store *SSTableStore) Remove(sst *SSTable) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
@@ -285,8 +302,8 @@ func (store *SSTableStore) remove(sst *SSTable) {
 	}
 }
 
-func (store *SSTableStore) replace(old, new *SSTable) {
-	store.remove(old)
+func (store *SSTableStore) Replace(old, new *SSTable) {
+	store.Remove(old)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -295,7 +312,6 @@ func (store *SSTableStore) replace(old, new *SSTable) {
 	sort.Slice(store.tables[new.level], func(a, b int) bool {
 		return store.tables[new.level][a].name < store.tables[new.level][b].name
 	})
-
 }
 
 func (store *SSTableStore) Search(key [4]byte) []byte {
@@ -320,78 +336,4 @@ func (store *SSTableStore) DeleteIndex(key [4]byte) {
 
 func (store *SSTableStore) Tables() map[int][]*SSTable {
 	return store.tables
-}
-
-func (store *SSTableStore) MaybeCompactL0() {
-	threshold := 3
-
-	tablesToCompact := []*SSTable{}
-	tablesToDelete := []*SSTable{}
-	tablesToReplace := [][2]*SSTable{}
-
-	count := 0
-	for levelKey, level := range store.tables {
-		for _, table := range level {
-			// for now I only handle l0 compaction but I should handle higher levels
-			if levelKey == 0 {
-				count++
-				if count >= threshold {
-					newTable := Compact(append(tablesToCompact, table), table)
-					tablesToDelete = append(tablesToDelete, tablesToCompact...)
-					tablesToReplace = append(tablesToReplace, [2]*SSTable{table, newTable})
-					count = 0
-					tablesToCompact = []*SSTable{}
-				} else {
-					tablesToCompact = append(tablesToCompact, table)
-				}
-			}
-		}
-	}
-
-	for _, table := range tablesToDelete {
-		store.remove(table)
-	}
-
-	for _, table := range tablesToReplace {
-		table[1].Ready()
-		store.replace(table[0], table[1])
-	}
-}
-
-func (store *SSTableStore) MaybeCompactToUpperLevel() {
-	tablesToDelete := []*SSTable{}
-	tablesToReplace := [][2]*SSTable{}
-
-	for i := range store.tables {
-		// we are at the top level
-		if i+1 > len(store.tables) {
-			return
-		}
-		tablesToCompact := []*SSTable{}
-		for _, l1 := range store.tables[i+1] {
-			l1min, l1max := l1.GetMinMax()
-			tablesToCompact = append(tablesToCompact, l1)
-			for _, l0 := range store.tables[i] {
-				l0min, l0max := l0.GetMinMax()
-				if l0max >= l1min && l0min <= l1max {
-					tablesToCompact = append(tablesToCompact, l0)
-					tablesToDelete = append(tablesToDelete, l0)
-
-					l1min = min(l0min, l1min)
-					l1max = max(l0max, l1max)
-				}
-			}
-			newTable := Compact(tablesToCompact, l1)
-			tablesToReplace = append(tablesToReplace, [2]*SSTable{l1, newTable})
-		}
-	}
-
-	for _, table := range tablesToDelete {
-		store.remove(table)
-	}
-
-	for _, table := range tablesToReplace {
-		store.replace(table[0], table[1])
-		table[1].Rename(strings.TrimSuffix(table[1].name, ".tmp"))
-	}
 }

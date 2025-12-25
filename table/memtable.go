@@ -1,8 +1,9 @@
-package froopydb
+package table
 
 import (
 	"bytes"
 	"fmt"
+	"froopydb/x"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -56,8 +57,8 @@ func (wal *WAL) writer() {
 }
 
 func (wal *WAL) Write(key, value []byte) {
-	klen := Uint16ToBytes(uint16(len(key)))
-	vlen := Uint16ToBytes(uint16(len(value)))
+	klen := x.Uint16ToBytes(uint16(len(key)))
+	vlen := x.Uint16ToBytes(uint16(len(value)))
 
 	var buf bytes.Buffer
 	buf.Write(klen)
@@ -74,7 +75,7 @@ func (wal *WAL) Finish() {
 	os.Remove(wal.file.Name() + ".imm")
 }
 
-// Mark log file as immutable by adding .imm prefix
+// Mark log file as immutable (add `.imm` prefix)
 func (wal *WAL) Immutable() {
 	os.Rename(wal.file.Name(), wal.file.Name()+".imm")
 }
@@ -124,12 +125,12 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 		file.ReadAt(vlenBytes, offset)
 		offset += 2
 
-		klen := BytesToUint16(klenBytes)
+		klen := x.BytesToUint16(klenBytes)
 		key := make([]byte, klen)
 		file.ReadAt(key, offset)
 		offset += int64(klen)
 
-		vlen := BytesToUint16(vlenBytes)
+		vlen := x.BytesToUint16(vlenBytes)
 		val := make([]byte, vlen)
 		file.ReadAt(val, offset)
 		offset += int64(vlen)
@@ -171,4 +172,12 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 
 func (m *MemTable) ShouldFlush(key, value []byte) bool {
 	return m.maxSize <= m.size+len(key)+len(value)
+}
+
+func (m *MemTable) MaxSize() int {
+	return m.maxSize
+}
+
+func (m *MemTable) SetLoggerImmutable() {
+	m.logger.Immutable()
 }

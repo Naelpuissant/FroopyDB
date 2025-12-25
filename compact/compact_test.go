@@ -1,7 +1,8 @@
-package froopydb_test
+package compact_test
 
 import (
-	src "froopydb"
+	"froopydb/compact"
+	"froopydb/table"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,12 +10,12 @@ import (
 
 func TestMaybeCompactL0(t *testing.T) {
 	// Create temporary directory
-	dir := "../db/compaction_test"
+	dir := "../test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store := src.NewSSTableStore(dir, 100000)
+	store := table.NewSSTableStore(dir, 100000)
 
 	// Create 3 SSTables (level 0) to trigger compaction
 
@@ -45,7 +46,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	}
 
 	// --- Run compaction ---
-	store.MaybeCompactL0()
+	compact.MaybeCompactL0(store)
 
 	// --- Validate compaction result ---
 
@@ -69,7 +70,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open new sstable: %v", err)
 	}
-	newTable := src.NewSSTableFromFile(f)
+	newTable := table.NewSSTableFromFile(f)
 
 	if len(newTable.Index()) != 3 {
 		t.Fatalf("expected 3 keys in merged sstable, got %d", len(newTable.Index()))
@@ -91,12 +92,12 @@ func TestMaybeCompactL0(t *testing.T) {
 
 func TestMaybeCompactToUpperLevel(t *testing.T) {
 	// Create temporary directory
-	dir := "../db/compaction_test"
+	dir := "../test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store := src.NewSSTableStore(dir, 100000)
+	store := table.NewSSTableStore(dir, 100000)
 
 	t1 := store.AddNew()
 	t1.Open()
@@ -117,7 +118,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t3.WriteIndices()
 	defer t3.Close()
 
-	store.MaybeCompactL0()
+	compact.MaybeCompactL0(store)
 
 	t4 := store.AddNew()
 	t4.Open()
@@ -134,7 +135,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t5.WriteIndices()
 	defer t5.Close()
 
-	store.MaybeCompactToUpperLevel()
+	compact.MaybeCompactToUpperLevel(store)
 
 	tests := map[[4]byte]string{
 		{1, 0, 0, 0}: "A",
