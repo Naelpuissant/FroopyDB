@@ -3,6 +3,7 @@ package froopydb
 import (
 	"froopydb/compact"
 	t "froopydb/table"
+	"froopydb/wal"
 	"froopydb/x"
 	"os"
 	"sync"
@@ -37,7 +38,7 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 	}
 	os.MkdirAll(folder, 0777)
 
-	logger := t.NewWAL(folder, false)
+	logger := wal.NewWAL(folder, false)
 
 	memTable := t.NewMemTable(
 		memTableMaxSize,
@@ -70,7 +71,7 @@ func (db *DB) Set(key int, value string) string {
 	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
 		old := db.memTable
 		db.flushJobs <- old
-		db.memTable = t.NewMemTable(old.MaxSize(), t.NewWAL(db.folder, false))
+		db.memTable = t.NewMemTable(old.MaxSize(), wal.NewWAL(db.folder, false))
 	}
 	db.memTable.Set(keyBytes, valueBytes)
 	return value

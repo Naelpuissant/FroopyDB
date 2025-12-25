@@ -109,9 +109,12 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Add concurrency for Flush
 - [x] Add concurrency for Wal Write
 - [x] Add concurrency for Compaction
-- [ ] Clear split of files for better unit testing (wal, memtable, sst, db)
+- [x] Clear split of files for better unit testing (wal, memtable, sst, db)
+- [ ] Continue split big files (wal, memtable, sst, db)
+- [ ] Add separeted parser for sstable
 - [ ] clean error handling (too add when bored)
 - [ ] refactor method privacy (too add when bored)
+- [ ] Add unit testing
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] only works with bytes and allow more or less than 4 bytes keys (maybe useless with types)

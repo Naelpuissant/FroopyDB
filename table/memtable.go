@@ -1,104 +1,28 @@
 package table
 
 import (
-	"bytes"
 	"fmt"
+	"froopydb/wal"
 	"froopydb/x"
-	"math/rand"
 	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/huandu/skiplist"
 )
 
-type WAL struct {
-	folder  string
-	file    *os.File
-	writeCh chan []byte
-}
-
-func openLogFile(folder string, tryRecover bool) *os.File {
-	if tryRecover {
-		dir, _ := os.ReadDir(folder)
-
-		for _, entry := range dir {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
-				file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_APPEND|os.O_RDWR, 0777)
-				return file
-			}
-		}
-	}
-
-	now := time.Now().UnixMilli()
-	filename := fmt.Sprintf("%d_%d.log", now, rand.Intn(10000))
-	path := filepath.Join(folder, filename)
-	file, _ := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
-
-	return file
-}
-
-func NewWAL(folder string, tryRecover bool) *WAL {
-	file := openLogFile(folder, tryRecover)
-	wal := &WAL{
-		folder:  folder,
-		file:    file,
-		writeCh: make(chan []byte),
-	}
-	go wal.writer()
-	return wal
-}
-
-func (wal *WAL) writer() {
-	for record := range wal.writeCh {
-		wal.file.Write(record)
-	}
-}
-
-func (wal *WAL) Write(key, value []byte) {
-	klen := x.Uint16ToBytes(uint16(len(key)))
-	vlen := x.Uint16ToBytes(uint16(len(value)))
-
-	var buf bytes.Buffer
-	buf.Write(klen)
-	buf.Write(vlen)
-	buf.Write(key)
-	buf.Write(value)
-
-	wal.writeCh <- buf.Bytes()
-}
-
-// Close and remove log file
-func (wal *WAL) Finish() {
-	wal.file.Close()
-	os.Remove(wal.file.Name() + ".imm")
-}
-
-// Mark log file as immutable (add `.imm` prefix)
-func (wal *WAL) Immutable() {
-	os.Rename(wal.file.Name(), wal.file.Name()+".imm")
-}
-
-func (wal *WAL) getFileSize() int64 {
-	fs, _ := wal.file.Stat()
-	return fs.Size()
-}
-
 type MemTable struct {
 	maxSize int //Bytes
 	size    int //Bytes
-	logger  *WAL
+	logger  *wal.WAL
 	store   *skiplist.SkipList
 }
 
-func NewMemTable(maxSize int, logger *WAL) *MemTable {
+func NewMemTable(maxSize int, logger *wal.WAL) *MemTable {
 	store := skiplist.New(skiplist.Bytes)
-	fsize := int(logger.getFileSize())
+	fsize := int(logger.GetFileSize())
 
 	memTableSize := 0
 	if fsize > 0 {
-		memTableSize = loadMemTableFromFile(store, logger.file)
+		memTableSize = loadMemTableFromFile(store, logger.File())
 	}
 
 	return &MemTable{
