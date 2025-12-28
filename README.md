@@ -1,4 +1,5 @@
 [![Go](https://github.com/Naelpuissant/FroopyDB/actions/workflows/go.yml/badge.svg)](https://github.com/Naelpuissant/FroopyDB/actions/workflows/go.yml)
+![Coverage](https://img.shields.io/badge/Coverage-27.1%25-red)
 
 # FroopyDB
 
