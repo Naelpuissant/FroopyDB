@@ -1,3 +1,5 @@
+[![Go](https://github.com/Naelpuissant/FroopyDB/actions/workflows/go.yml/badge.svg)](https://github.com/Naelpuissant/FroopyDB/actions/workflows/go.yml)
+
 # FroopyDB
 
 A persistent LSM-tree based/key-value db for educational purpose
