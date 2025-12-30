@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func Compact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
+func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	compactedTable := map[[4]byte][]byte{}
 
 	for _, table := range tables {
@@ -45,7 +45,7 @@ func MaybeCompactL0(store *t.SSTableStore) {
 			if levelKey == 0 {
 				count++
 				if count >= threshold {
-					newTable := Compact(append(tablesToCompact, table), table)
+					newTable := doCompact(append(tablesToCompact, table), table)
 					tablesToDelete = append(tablesToDelete, tablesToCompact...)
 					tablesToReplace = append(tablesToReplace, [2]*t.SSTable{table, newTable})
 					count = 0
@@ -90,7 +90,7 @@ func MaybeCompactToUpperLevel(store *t.SSTableStore) {
 					l1max = max(l0max, l1max)
 				}
 			}
-			newTable := Compact(tablesToCompact, l1)
+			newTable := doCompact(tablesToCompact, l1)
 			tablesToReplace = append(tablesToReplace, [2]*t.SSTable{l1, newTable})
 		}
 	}

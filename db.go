@@ -45,7 +45,10 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 		logger,
 	)
 
-	sstables := t.NewSSTableStore(folder, sstableMaxSize)
+	sstables, err := t.NewSSTableStore(folder, sstableMaxSize)
+	if err != nil {
+		println(err)
+	}
 
 	db := &DB{
 		folder:       folder,
@@ -102,7 +105,12 @@ func (db *DB) Get(key int) string {
 		return string(value)
 	}
 
-	return string(db.sstables.Search(([4]byte)(keyBytes)))
+	value, err := db.sstables.Search(([4]byte)(keyBytes))
+	if err != nil {
+		println(err)
+	}
+
+	return string(value)
 }
 
 func (db *DB) Delete(key int) string {

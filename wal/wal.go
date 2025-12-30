@@ -32,7 +32,10 @@ func openLogFile(folder string, tryRecover bool) *os.File {
 	now := time.Now().UnixMilli()
 	filename := fmt.Sprintf("%d_%d.log", now, rand.Intn(10000))
 	path := filepath.Join(folder, filename)
-	file, _ := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create WAL file %s: %v", path, err))
+	}
 
 	return file
 }

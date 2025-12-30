@@ -115,9 +115,9 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Clear split of files for better unit testing (wal, memtable, sst, db)
 - [x] Continue split big files (wal, memtable, sst, db)
 - [ ] Add separeted parser for sstable (to dig)
-- [ ] clean error handling (too add when bored)
-- [ ] refactor method privacy (too add when bored)
-- [ ] add debug logger
+- [x] clean error handling (too add when bored)
+- [x] refactor method privacy (too add when bored)
+- [ ] add debug logger (print for now, create simple one when needed)
 - [ ] Add unit testing
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)

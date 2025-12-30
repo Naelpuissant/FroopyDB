@@ -15,7 +15,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store := table.NewSSTableStore(dir, 100000)
+	store, _ := table.NewSSTableStore(dir, 100000)
 
 	// Create 3 SSTables (level 0) to trigger compaction
 
@@ -103,7 +103,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store := table.NewSSTableStore(dir, 100000)
+	store, _ := table.NewSSTableStore(dir, 100000)
 
 	t1 := store.AddNew()
 	t1.Open()
@@ -152,8 +152,11 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	}
 
 	for key, expected := range tests {
-		value := string(store.Search(key))
-		if value != expected {
+		value, err := store.Search(key)
+		if err != nil {
+			t.Fatalf("failed to search key %v: %v", key, err)
+		}
+		if string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
 		}
 	}

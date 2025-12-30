@@ -93,7 +93,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	}
 
 	if startOffset != endOffset {
-		return nil, fmt.Errorf("failed to recover sstable index: %d/%d", startOffset, endOffset)
+		return nil, fmt.Errorf("%w: %d/%d", ErrSSTableIndexRecoveryFailed, startOffset, endOffset)
 	}
 
 	println(file.Name() + " : sstable recovered") // TODO: debug logger
@@ -171,8 +171,8 @@ func (sst *SSTable) Open() (*os.File, error) {
 	return file, nil
 }
 
-func (sst *SSTable) Close() {
-	sst.file.Close()
+func (sst *SSTable) Close() error {
+	return sst.file.Close()
 }
 
 func (sst *SSTable) Remove() {
