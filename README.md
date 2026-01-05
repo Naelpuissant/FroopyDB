@@ -117,7 +117,7 @@ It's getting really interresting, lets add compaction concurrency.
 - [ ] Add separeted parser for sstable (to dig)
 - [x] clean error handling (too add when bored)
 - [x] refactor method privacy (too add when bored)
-- [ ] add debug logger (create a simple one)
+- [x] add debug logger (create a simple one)
 - [ ] Add unit testing
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
