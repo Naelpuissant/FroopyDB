@@ -1,12 +1,15 @@
 package table_test
 
 import (
+	"froopydb/logger"
 	"froopydb/table"
 	"testing"
 )
 
 func TestSSTableStoreAddNew(t *testing.T) {
-	store, _ := table.NewSSTableStore("/tmp", 100000)
+	logger := logger.NewLogger(logger.DEBUG)
+
+	store, _ := table.NewSSTableStore(logger, "/tmp", 100000)
 
 	sst1 := store.AddNew()
 	if sst1.Name() != "/tmp/0_1.sst" {

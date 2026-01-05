@@ -1,6 +1,7 @@
 package table_test
 
 import (
+	"froopydb/logger"
 	"froopydb/table"
 	"froopydb/wal"
 	"froopydb/x"
@@ -8,12 +9,13 @@ import (
 )
 
 func TestFlushMemtable(t *testing.T) {
-	logger := wal.NewWAL("/tmp", false)
-	memTable := table.NewMemTable(1337, logger)
+	logger := logger.NewLogger(logger.DEBUG)
+	wal := wal.NewWAL("/tmp", false)
+	memTable := table.NewMemTable(logger, 1337, wal)
 	memTable.Set(x.Uint32ToBytes(uint32(1)), x.StrToBytes("foo"))
 	memTable.Set(x.Uint32ToBytes(uint32(2)), x.StrToBytes("bar"))
 
-	sst := table.NewSSTable("/tmp", 0, 1, true, 0)
+	sst := table.NewSSTable(logger, "/tmp", 0, 1, true, 0)
 	sst.Open()
 	defer sst.Close()
 	memTable.Flush(sst)

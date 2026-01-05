@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"froopydb/logger"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,6 +11,8 @@ import (
 )
 
 type SSTableStore struct {
+	logger *logger.Logger
+
 	tables         map[int][]*SSTable
 	maxLevel       int
 	folder         string
@@ -17,19 +20,21 @@ type SSTableStore struct {
 	mu             sync.Mutex
 }
 
-func NewSSTableStore(folder string, sstableMaxSize int) (*SSTableStore, error) {
+func NewSSTableStore(logger *logger.Logger, folder string, sstableMaxSize int) (*SSTableStore, error) {
 	maxLevel := 1
 	tables := map[int][]*SSTable{}
 	for i := range maxLevel {
 		tables[i] = []*SSTable{}
 	}
 
-	err := loadSSTablesFromFile(tables, folder)
+	// TODO : limit logger passed to SSTable ?
+	err := loadSSTablesFromFile(logger, tables, folder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load SSTables from %s: %w", folder, err)
 	}
 
 	return &SSTableStore{
+		logger:         logger,
 		tables:         tables,
 		maxLevel:       1,
 		folder:         folder,
@@ -37,7 +42,7 @@ func NewSSTableStore(folder string, sstableMaxSize int) (*SSTableStore, error) {
 	}, nil
 }
 
-func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) error {
+func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, folder string) error {
 	dir, err := os.ReadDir(folder)
 	if err != nil {
 		return err
@@ -49,7 +54,7 @@ func loadSSTablesFromFile(tables map[int][]*SSTable, folder string) error {
 			if err != nil {
 				return err
 			}
-			table, err := NewSSTableFromFile(file)
+			table, err := NewSSTableFromFile(logger, file)
 			if err != nil {
 				return err
 			}
@@ -65,7 +70,7 @@ func (store *SSTableStore) Add(sst *SSTable) *SSTable {
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
-	table := NewSSTable(store.folder, 0, store.Len(), false, 0)
+	table := NewSSTable(store.logger, store.folder, 0, store.Len(), false, 0)
 	store.tables[0] = append(store.tables[0], table)
 	return table
 }

@@ -2,6 +2,7 @@ package compact_test
 
 import (
 	"froopydb/compact"
+	"froopydb/logger"
 	"froopydb/table"
 	"os"
 	"path/filepath"
@@ -9,46 +10,40 @@ import (
 )
 
 func TestMaybeCompactL0(t *testing.T) {
+	logger := logger.NewLogger(logger.DEBUG)
+
 	// Create temporary directory
 	dir := "../test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store, _ := table.NewSSTableStore(dir, 100000)
+	store, _ := table.NewSSTableStore(logger, dir, 100000)
 
 	// Create 3 SSTables (level 0) to trigger compaction
-
-	// SSTable 0
 	t0 := store.AddNew()
 	t0.Open()
 	t0.WriteBlock([4]byte{1, 0, 0, 0}, []byte("A"))
 	t0.WriteIndices()
 	defer t0.Close()
 
-	// SSTable 1
 	t1 := store.AddNew()
 	t1.Open()
 	t1.WriteBlock([4]byte{2, 0, 0, 0}, []byte("B"))
 	t1.WriteIndices()
 	defer t1.Close()
 
-	// SSTable 2
 	t2 := store.AddNew()
 	t2.Open()
 	t2.WriteBlock([4]byte{3, 0, 0, 0}, []byte("C"))
 	t2.WriteIndices()
 	defer t2.Close()
 
-	// Make sure we actually have 3 level-0 SSTables.
 	if len(store.Tables()[0]) != 3 {
 		t.Fatalf("expected 3 tables, got %d", len(store.Tables()))
 	}
 
-	// --- Run compaction ---
-	compact.MaybeCompactL0(store)
-
-	// --- Validate compaction result ---
+	compact.MaybeCompactL0(logger, store)
 
 	files, _ := os.ReadDir(dir)
 	sstCount := 0
@@ -70,7 +65,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open new sstable: %v", err)
 	}
-	newTable, err := table.NewSSTableFromFile(f)
+	newTable, err := table.NewSSTableFromFile(logger, f)
 	if err != nil {
 		t.Fatalf("failed to load new sstable: %v", err)
 	}
@@ -97,13 +92,15 @@ func TestMaybeCompactL0(t *testing.T) {
 }
 
 func TestMaybeCompactToUpperLevel(t *testing.T) {
+	logger := logger.NewLogger(logger.DEBUG)
+
 	// Create temporary directory
 	dir := "../test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 
-	store, _ := table.NewSSTableStore(dir, 100000)
+	store, _ := table.NewSSTableStore(logger, dir, 100000)
 
 	t1 := store.AddNew()
 	t1.Open()
@@ -124,7 +121,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t3.WriteIndices()
 	defer t3.Close()
 
-	compact.MaybeCompactL0(store)
+	compact.MaybeCompactL0(logger, store)
 
 	t4 := store.AddNew()
 	t4.Open()
@@ -141,7 +138,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t5.WriteIndices()
 	defer t5.Close()
 
-	compact.MaybeCompactToUpperLevel(store)
+	compact.MaybeCompactToUpperLevel(logger, store)
 
 	tests := map[[4]byte]string{
 		{1, 0, 0, 0}: "A",

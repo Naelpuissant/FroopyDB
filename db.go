@@ -2,6 +2,7 @@ package froopydb
 
 import (
 	"froopydb/compact"
+	"froopydb/logger"
 	t "froopydb/table"
 	"froopydb/wal"
 	"froopydb/x"
@@ -15,10 +16,11 @@ var (
 )
 
 type DB struct {
+	logger   *logger.Logger
 	folder   string
 	sstables *t.SSTableStore
+	memTable *t.MemTable
 
-	memTable     *t.MemTable
 	immMu        sync.Mutex
 	immMemTables []*t.MemTable
 	flushJobs    chan *t.MemTable
@@ -36,21 +38,24 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 	if clearOnStart {
 		os.RemoveAll(folder)
 	}
+
+	logger := logger.NewLogger(logger.INFO)
+
 	os.MkdirAll(folder, 0777)
 
-	logger := wal.NewWAL(folder, false)
-
 	memTable := t.NewMemTable(
-		memTableMaxSize,
 		logger,
+		memTableMaxSize,
+		wal.NewWAL(folder, false),
 	)
 
-	sstables, err := t.NewSSTableStore(folder, sstableMaxSize)
+	sstables, err := t.NewSSTableStore(logger, folder, sstableMaxSize)
 	if err != nil {
 		println(err)
 	}
 
 	db := &DB{
+		logger:       logger,
 		folder:       folder,
 		memTable:     memTable,
 		immMemTables: []*t.MemTable{},
@@ -74,7 +79,7 @@ func (db *DB) Set(key int, value string) string {
 	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
 		old := db.memTable
 		db.flushJobs <- old
-		db.memTable = t.NewMemTable(old.MaxSize(), wal.NewWAL(db.folder, false))
+		db.memTable = t.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
 	}
 	db.memTable.Set(keyBytes, valueBytes)
 	return value
@@ -124,16 +129,16 @@ func (db *DB) flushWorker() {
 		db.immMemTables = append(db.immMemTables, mt)
 		mt.SetLoggerImmutable()
 
-		newTable := t.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
+		newTable := t.NewSSTable(db.logger, db.folder, 0, db.sstables.Len(), true, 0)
 		newTable.Open()
 		mt.Flush(newTable)
 		db.sstables.Add(newTable)
 
 		db.removeImmMemTable(mt)
 
-		// Compact
-		compact.MaybeCompactToUpperLevel(db.sstables)
-		compact.MaybeCompactL0(db.sstables)
+		// Compact -> should be called by the user ?
+		compact.MaybeCompactToUpperLevel(db.logger, db.sstables)
+		compact.MaybeCompactL0(db.logger, db.sstables)
 	}
 }
 

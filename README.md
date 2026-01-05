@@ -117,12 +117,12 @@ It's getting really interresting, lets add compaction concurrency.
 - [ ] Add separeted parser for sstable (to dig)
 - [x] clean error handling (too add when bored)
 - [x] refactor method privacy (too add when bored)
-- [ ] add debug logger (print for now, create simple one when needed)
+- [ ] add debug logger (create a simple one)
 - [ ] Add unit testing
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] only works with bytes and allow more or less than 4 bytes keys (maybe useless with types)
-- [ ] Think about splitting files for each sstable (data, index, metadata)
+- [ ] Split files for each sstable (data, index, metadata)
 - [ ] Create a clear api for user compaction (compaction should be called by the user)
 - [ ] Bloom filter
 - [ ] Skiplist custom
@@ -130,6 +130,7 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Setup CI
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Recode everything in Rust
+- [ ] Python binding
 
 
 ## Usefull links

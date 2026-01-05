@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"froopydb/logger"
 	"froopydb/wal"
 	"froopydb/x"
 	"os"
@@ -10,30 +11,38 @@ import (
 )
 
 type MemTable struct {
+	logger *logger.Logger
+
 	maxSize int //Bytes
 	size    int //Bytes
-	logger  *wal.WAL
-	store   *skiplist.SkipList
+
+	wal   *wal.WAL
+	store *skiplist.SkipList
 }
 
-func NewMemTable(maxSize int, logger *wal.WAL) *MemTable {
+func NewMemTable(logger *logger.Logger, maxSize int, wal *wal.WAL) *MemTable {
 	store := skiplist.New(skiplist.Bytes)
-	fsize := int(logger.GetFileSize())
+	fsize := int(wal.GetFileSize())
 
 	memTableSize := 0
 	if fsize > 0 {
-		memTableSize = loadMemTableFromFile(store, logger.File())
+		memTableSize, err := loadMemTableFromFile(store, wal.File())
+		if err != nil {
+			logger.Error("Failed to recover memtable from WAL", "error", err)
+			panic(err)
+		}
+		logger.Info("Recovered memtable from WAL", "size", memTableSize)
 	}
 
 	return &MemTable{
 		maxSize: maxSize,
 		size:    memTableSize,
-		logger:  logger,
+		wal:     wal,
 		store:   store,
 	}
 }
 
-func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
+func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) (int, error) {
 	fstat, _ := file.Stat()
 
 	fsize := fstat.Size()
@@ -64,11 +73,11 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) int {
 	}
 
 	if offset != fsize {
-		panic(fmt.Sprintf("Failed to recover memtable: %d/%d\n", offset, fsize))
+		err := fmt.Errorf("%w: %d/%d", ErrMemTableRecoveryFailed, offset, fsize)
+		return memTableSize, err
 	}
 
-	println(file.Name() + " : memtable recovered")
-	return memTableSize
+	return memTableSize, nil
 }
 
 func (m *MemTable) Flush(sst *SSTable) {
@@ -79,13 +88,13 @@ func (m *MemTable) Flush(sst *SSTable) {
 		}
 	}
 	sst.WriteIndices()
-	m.logger.Finish()
+	m.wal.Finish()
 	sst.Ready()
 }
 
 func (m *MemTable) Set(key, value []byte) {
 	m.store.Set(key, value)
-	m.logger.Write(key, value)
+	m.wal.Write(key, value)
 	m.size += len(key) + len(value)
 }
 
@@ -106,5 +115,5 @@ func (m *MemTable) MaxSize() int {
 }
 
 func (m *MemTable) SetLoggerImmutable() {
-	m.logger.Immutable()
+	m.wal.Immutable()
 }
