@@ -3,7 +3,6 @@ package table
 import (
 	"bufio"
 	"fmt"
-	"froopydb/logger"
 	"froopydb/x"
 	"io"
 	"os"
@@ -39,8 +38,6 @@ func parseSSTableName(path string) (folder string, level int, incr int) {
 }
 
 type SSTable struct {
-	logger *logger.Logger
-
 	name   string
 	folder string
 	level  int
@@ -50,10 +47,9 @@ type SSTable struct {
 	index  map[[4]byte]uint32 // uint32 key
 }
 
-func NewSSTable(logger *logger.Logger, folder string, level int, incr int, tmp bool, size int) *SSTable {
+func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
 	name := newSSTableName(folder, level, incr, tmp)
 	return &SSTable{
-		logger: logger,
 		name:   name,
 		folder: folder,
 		level:  level,
@@ -63,7 +59,7 @@ func NewSSTable(logger *logger.Logger, folder string, level int, incr int, tmp b
 	}
 }
 
-func NewSSTableFromFile(logger *logger.Logger, file *os.File) (*SSTable, error) {
+func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	fstat, err := file.Stat()
 	if err != nil {
 		return nil, err
@@ -100,11 +96,8 @@ func NewSSTableFromFile(logger *logger.Logger, file *os.File) (*SSTable, error) 
 		return nil, fmt.Errorf("%w: %d/%d", ErrSSTableIndexRecoveryFailed, startOffset, endOffset)
 	}
 
-	logger.Debug("Recovered SSTable index", "size", len(index))
-
 	folder, level, incr := parseSSTableName(file.Name())
 	return &SSTable{
-		logger: logger,
 		size:   int(indexBlockSize),
 		folder: folder,
 		level:  level,

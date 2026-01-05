@@ -2,6 +2,7 @@ package froopydb_test
 
 import (
 	fpdb "froopydb"
+	"froopydb/logger"
 	"os"
 	"testing"
 )
@@ -10,7 +11,7 @@ var db *fpdb.DB
 
 func TestMain(m *testing.M) {
 	os.RemoveAll("./db/test")
-	db = fpdb.NewDB("./db/test", 5, fpdb.KB*128, true)
+	db = fpdb.NewDB("./db/test", 5, fpdb.KB*128, true, logger.ERROR)
 
 	code := m.Run()
 
@@ -55,7 +56,7 @@ func TestDelete(t *testing.T) {
 func TestCompactAndMerge(t *testing.T) {
 	os.RemoveAll("./test/db")
 	olddb := db
-	db = fpdb.NewDB("./test/db", 5, 100, true)
+	db = fpdb.NewDB("./test/db", 5, 100, true, logger.ERROR)
 	for i := range 100 {
 		db.Set(i, "pad")
 	}

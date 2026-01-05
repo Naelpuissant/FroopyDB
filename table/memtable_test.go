@@ -15,7 +15,7 @@ func TestFlushMemtable(t *testing.T) {
 	memTable.Set(x.Uint32ToBytes(uint32(1)), x.StrToBytes("foo"))
 	memTable.Set(x.Uint32ToBytes(uint32(2)), x.StrToBytes("bar"))
 
-	sst := table.NewSSTable(logger, "/tmp", 0, 1, true, 0)
+	sst := table.NewSSTable("/tmp", 0, 1, true, 0)
 	sst.Open()
 	defer sst.Close()
 	memTable.Flush(sst)

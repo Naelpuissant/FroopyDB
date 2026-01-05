@@ -43,7 +43,7 @@ func TestMaybeCompactL0(t *testing.T) {
 		t.Fatalf("expected 3 tables, got %d", len(store.Tables()))
 	}
 
-	compact.MaybeCompactL0(logger, store)
+	compact.MaybeCompactL0(store)
 
 	files, _ := os.ReadDir(dir)
 	sstCount := 0
@@ -65,7 +65,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open new sstable: %v", err)
 	}
-	newTable, err := table.NewSSTableFromFile(logger, f)
+	newTable, err := table.NewSSTableFromFile(f)
 	if err != nil {
 		t.Fatalf("failed to load new sstable: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t3.WriteIndices()
 	defer t3.Close()
 
-	compact.MaybeCompactL0(logger, store)
+	compact.MaybeCompactL0(store)
 
 	t4 := store.AddNew()
 	t4.Open()
@@ -138,7 +138,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	t5.WriteIndices()
 	defer t5.Close()
 
-	compact.MaybeCompactToUpperLevel(logger, store)
+	compact.MaybeCompactToUpperLevel(store)
 
 	tests := map[[4]byte]string{
 		{1, 0, 0, 0}: "A",

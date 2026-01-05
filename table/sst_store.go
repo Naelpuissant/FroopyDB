@@ -32,6 +32,7 @@ func NewSSTableStore(logger *logger.Logger, folder string, sstableMaxSize int) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to load SSTables from %s: %w", folder, err)
 	}
+	logger.Debug("Loaded SSTables from folder", "folder", folder, "tables", len(tables))
 
 	return &SSTableStore{
 		logger:         logger,
@@ -54,10 +55,11 @@ func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, fold
 			if err != nil {
 				return err
 			}
-			table, err := NewSSTableFromFile(logger, file)
+			table, err := NewSSTableFromFile(file)
 			if err != nil {
 				return err
 			}
+			logger.Debug("Recovered SSTable index", "size", len(table.index))
 			tables[table.level] = append(tables[table.level], table)
 		}
 	}
@@ -70,7 +72,7 @@ func (store *SSTableStore) Add(sst *SSTable) *SSTable {
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
-	table := NewSSTable(store.logger, store.folder, 0, store.Len(), false, 0)
+	table := NewSSTable(store.folder, 0, store.Len(), false, 0)
 	store.tables[0] = append(store.tables[0], table)
 	return table
 }

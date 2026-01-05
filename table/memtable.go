@@ -31,7 +31,7 @@ func NewMemTable(logger *logger.Logger, maxSize int, wal *wal.WAL) *MemTable {
 			logger.Error("Failed to recover memtable from WAL", "error", err)
 			panic(err)
 		}
-		logger.Info("Recovered memtable from WAL", "size", memTableSize)
+		logger.Debug("Recovered memtable from WAL", "size", memTableSize)
 	}
 
 	return &MemTable{

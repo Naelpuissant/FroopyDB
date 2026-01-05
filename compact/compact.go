@@ -1,12 +1,11 @@
 package compact
 
 import (
-	"froopydb/logger"
 	t "froopydb/table"
 	"strings"
 )
 
-func doCompact(logger *logger.Logger, tables []*t.SSTable, target *t.SSTable) *t.SSTable {
+func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	compactedTable := map[[4]byte][]byte{}
 
 	for _, table := range tables {
@@ -21,7 +20,7 @@ func doCompact(logger *logger.Logger, tables []*t.SSTable, target *t.SSTable) *t
 	}
 
 	// persist in new tmp file with max incr file name
-	tmpSegment := t.NewSSTable(logger, target.Folder(), 1, target.Incr(), true, 0)
+	tmpSegment := t.NewSSTable(target.Folder(), 1, target.Incr(), true, 0)
 	tmpSegment.Open()
 
 	for key, value := range compactedTable {
@@ -32,7 +31,7 @@ func doCompact(logger *logger.Logger, tables []*t.SSTable, target *t.SSTable) *t
 	return tmpSegment
 }
 
-func MaybeCompactL0(logger *logger.Logger, store *t.SSTableStore) {
+func MaybeCompactL0(store *t.SSTableStore) {
 	threshold := 3
 
 	tablesToCompact := []*t.SSTable{}
@@ -46,7 +45,7 @@ func MaybeCompactL0(logger *logger.Logger, store *t.SSTableStore) {
 			if levelKey == 0 {
 				count++
 				if count >= threshold {
-					newTable := doCompact(logger, append(tablesToCompact, table), table)
+					newTable := doCompact(append(tablesToCompact, table), table)
 					tablesToDelete = append(tablesToDelete, tablesToCompact...)
 					tablesToReplace = append(tablesToReplace, [2]*t.SSTable{table, newTable})
 					count = 0
@@ -68,7 +67,7 @@ func MaybeCompactL0(logger *logger.Logger, store *t.SSTableStore) {
 	}
 }
 
-func MaybeCompactToUpperLevel(logger *logger.Logger, store *t.SSTableStore) {
+func MaybeCompactToUpperLevel(store *t.SSTableStore) {
 	tablesToDelete := []*t.SSTable{}
 	tablesToReplace := [][2]*t.SSTable{}
 
@@ -91,7 +90,7 @@ func MaybeCompactToUpperLevel(logger *logger.Logger, store *t.SSTableStore) {
 					l1max = max(l0max, l1max)
 				}
 			}
-			newTable := doCompact(logger, tablesToCompact, l1)
+			newTable := doCompact(tablesToCompact, l1)
 			tablesToReplace = append(tablesToReplace, [2]*t.SSTable{l1, newTable})
 		}
 	}

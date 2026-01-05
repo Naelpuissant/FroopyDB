@@ -1,9 +1,12 @@
 package main
 
-import fpdb "froopydb"
+import (
+	fpdb "froopydb"
+	"froopydb/logger"
+)
 
 func main() {
-	db := fpdb.NewDB("./test/main", 0, 256, false)
+	db := fpdb.NewDB("./test/main", 0, 256, false, logger.DEBUG)
 	defer db.Close()
 
 	println("====GET====")

@@ -119,17 +119,20 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] refactor method privacy (too add when bored)
 - [x] add debug logger (create a simple one)
 - [ ] Add unit testing
-- [ ] range queries
-- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
-- [ ] only works with bytes and allow more or less than 4 bytes keys (maybe useless with types)
 - [ ] Split files for each sstable (data, index, metadata)
+- [ ] Allow more or less than 4 bytes keys (maybe useless with types)
+- [ ] range queries
+- [ ] DB stats queries (size, len ?, tables, memtableSize...)
+- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Create a clear api for user compaction (compaction should be called by the user)
+- [ ] Create a new web (api, tcp event loop, grpc...?)
+- [ ] Bench through web api
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits
 - [x] Setup CI
-- [ ] Create a new web (api, tcp event loop, grpc...?)
-- [ ] Recode everything in Rust
+- [ ] Test concurent queries
+- [ ] Recode everything in Rust (lol)
 - [ ] Python binding
 
 

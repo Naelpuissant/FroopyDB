@@ -26,7 +26,7 @@ type DB struct {
 	flushJobs    chan *t.MemTable
 }
 
-func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool) *DB {
+func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
 	if sstableMaxSize == 0 {
 		sstableMaxSize = 1000
 	}
@@ -39,7 +39,7 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 		os.RemoveAll(folder)
 	}
 
-	logger := logger.NewLogger(logger.INFO)
+	logger := logger.NewLogger(logLevel)
 
 	os.MkdirAll(folder, 0777)
 
@@ -51,7 +51,8 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 
 	sstables, err := t.NewSSTableStore(logger, folder, sstableMaxSize)
 	if err != nil {
-		println(err)
+		logger.Error("Failed to create SSTable store", "error", err)
+		panic(err)
 	}
 
 	db := &DB{
@@ -129,7 +130,7 @@ func (db *DB) flushWorker() {
 		db.immMemTables = append(db.immMemTables, mt)
 		mt.SetLoggerImmutable()
 
-		newTable := t.NewSSTable(db.logger, db.folder, 0, db.sstables.Len(), true, 0)
+		newTable := t.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
 		newTable.Open()
 		mt.Flush(newTable)
 		db.sstables.Add(newTable)
@@ -137,8 +138,8 @@ func (db *DB) flushWorker() {
 		db.removeImmMemTable(mt)
 
 		// Compact -> should be called by the user ?
-		compact.MaybeCompactToUpperLevel(db.logger, db.sstables)
-		compact.MaybeCompactL0(db.logger, db.sstables)
+		compact.MaybeCompactToUpperLevel(db.sstables)
+		compact.MaybeCompactL0(db.sstables)
 	}
 }
 
