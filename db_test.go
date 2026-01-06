@@ -21,34 +21,34 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetSet(t *testing.T) {
-	db.Set(1, "foo")
-	db.Set(1, "bar")
-	result := db.Get(1)
-	if result != "bar" {
+	db.Set([]byte{1}, []byte("foo"))
+	db.Set([]byte{1}, []byte("bar"))
+	result := db.Get([]byte{1})
+	if string(result) != "bar" {
 		t.Fatalf("Updated key 1 must be 'bar'")
 	}
 }
 
 func TestGetMultipleSegments(t *testing.T) {
-	db.Set(1, "foo")
-	db.Set(1, "bar")
+	db.Set([]byte{1}, []byte("foo"))
+	db.Set([]byte{1}, []byte("bar"))
 
 	for i := range 10 {
-		db.Set(i+2, "pad")
+		db.Set([]byte{byte(i + 2)}, []byte("pad"))
 	}
 
-	result := db.Get(1)
-	if result != "bar" {
+	result := db.Get([]byte{1})
+	if string(result) != "bar" {
 		t.Fatalf("Updated key 1 must be 'bar': %s", result)
 	}
 }
 
 func TestDelete(t *testing.T) {
-	db.Set(1, "foo")
+	db.Set([]byte{1}, []byte("foo"))
 
-	db.Delete(1)
-	result := db.Get(1)
-	if result != "" {
+	db.Delete([]byte{1})
+	result := db.Get([]byte{1})
+	if string(result) != "" {
 		t.Fatalf("Key 1 must be deleted: %s", result)
 	}
 }
@@ -58,23 +58,23 @@ func TestCompactAndMerge(t *testing.T) {
 	olddb := db
 	db = fpdb.NewDB("./test/db", 5, 100, true, logger.ERROR)
 	for i := range 100 {
-		db.Set(i, "pad")
+		db.Set([]byte{byte(i)}, []byte("pad"))
 	}
 
-	db.Set(1, "foo")
-	db.Set(2, "baz")
-	db.Set(3, "boo")
-	db.Delete(2)
-	db.Delete(3)
-	db.Set(2, "hey!")
+	db.Set([]byte{1}, []byte("foo"))
+	db.Set([]byte{2}, []byte("baz"))
+	db.Set([]byte{3}, []byte("boo"))
+	db.Delete([]byte{2})
+	db.Delete([]byte{3})
+	db.Set([]byte{2}, []byte("hey!"))
 
-	result := db.Get(1)
-	if result != "foo" {
+	result := db.Get([]byte{1})
+	if string(result) != "foo" {
 		t.Fatalf("Key 1 must foo: %s", result)
 	}
 
-	result = db.Get(3)
-	if result != "" {
+	result = db.Get([]byte{3})
+	if string(result) != "" {
 		t.Fatalf("Key 3 must be deleted: %s", result)
 	}
 	db = olddb
@@ -82,12 +82,12 @@ func TestCompactAndMerge(t *testing.T) {
 
 func BenchmarkSet(b *testing.B) {
 	for i := 0; i <= b.N; i++ {
-		db.Set(i, "load")
+		db.Set([]byte{byte(i)}, []byte("load"))
 	}
 }
 
 func BenchmarkGet(b *testing.B) {
 	for i := 0; i <= b.N; i++ {
-		db.Get(i)
+		db.Get([]byte{byte(i)})
 	}
 }

@@ -44,7 +44,7 @@ type SSTable struct {
 	incr   int
 	size   int
 	file   *os.File
-	index  map[[4]byte]uint32 // uint32 key
+	index  map[string]uint32
 }
 
 func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
@@ -55,7 +55,7 @@ func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable
 		level:  level,
 		incr:   incr,
 		size:   size,
-		index:  map[[4]byte]uint32{},
+		index:  map[string]uint32{},
 	}
 }
 
@@ -74,7 +74,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	startOffset := int64(x.BytesToUint32(startOffsetBytes))
 	indexBlockSize := startOffset
 
-	index := map[[4]byte]uint32{}
+	index := map[string]uint32{}
 	for startOffset < endOffset {
 		klenBytes := make([]byte, 2)
 		file.ReadAt(klenBytes, startOffset)
@@ -89,7 +89,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		file.ReadAt(offset, startOffset)
 		startOffset += 4
 
-		index[[4]byte(key)] = x.BytesToUint32(offset)
+		index[string(key)] = x.BytesToUint32(offset)
 	}
 
 	if startOffset != endOffset {
@@ -108,7 +108,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	}, nil
 }
 
-func (sst *SSTable) WriteBlock(key [4]byte, value []byte) error {
+func (sst *SSTable) WriteBlock(key []byte, value []byte) error {
 	offset, _ := sst.file.Seek(0, io.SeekCurrent)
 	w := bufio.NewWriter(sst.file)
 	vlen := x.Uint16ToBytes(uint16(len(value)))
@@ -121,7 +121,7 @@ func (sst *SSTable) WriteBlock(key [4]byte, value []byte) error {
 	}
 
 	if len(value) != 0 && value[0] != 0x00 {
-		sst.index[key] = uint32(offset)
+		sst.index[string(key)] = uint32(offset)
 	}
 
 	sst.size += 16 + len(value)
@@ -142,7 +142,7 @@ func (sst *SSTable) WriteIndices() error {
 		if _, err := w.Write(klen); err != nil {
 			return err
 		}
-		if _, err := w.Write(key[:]); err != nil {
+		if _, err := w.Write([]byte(key)); err != nil {
 			return err
 		}
 		if _, err := w.Write(x.Uint32ToBytes(offset)); err != nil {
@@ -183,12 +183,12 @@ func (sst *SSTable) Rename(new string) {
 	sst.name = new
 }
 
-func (sst *SSTable) DeleteIndex(key [4]byte) {
-	delete(sst.index, key)
+func (sst *SSTable) DeleteIndex(key []byte) {
+	delete(sst.index, string(key))
 }
 
-func (sst *SSTable) Search(key [4]byte) ([]byte, error) {
-	offset, found := sst.index[key]
+func (sst *SSTable) Search(key []byte) ([]byte, error) {
+	offset, found := sst.index[string(key)]
 	if !found {
 		return []byte{}, nil
 	}
@@ -232,17 +232,16 @@ func (sst *SSTable) setReadOnly() error {
 
 // Get min and max keys in the SSTable
 // Might want to store this metadata elsewhere later
-func (sst *SSTable) GetMinMax() (int, int) {
+func (sst *SSTable) GetMinMax() (string, string) {
 	if len(sst.index) == 0 {
-		return 0, 0
+		return "", ""
 	}
 
-	var minKey uint32 = ^uint32(0) // max possible uint32
-	var maxKey uint32 = 0
+	// Awfully inefficient, but whatever for now
+	minKey := string([]byte{255, 255, 255, 255, 255, 255, 255, 255})
+	maxKey := string([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 
-	for keyBytes := range sst.index {
-		key := x.BytesToUint32(keyBytes[:])
-
+	for key := range sst.index {
 		if key < minKey {
 			minKey = key
 		}
@@ -251,14 +250,14 @@ func (sst *SSTable) GetMinMax() (int, int) {
 		}
 	}
 
-	return int(minKey), int(maxKey)
+	return minKey, maxKey
 }
 
 func (sst *SSTable) ResetFilePointer() {
 	sst.file.Seek(0, io.SeekStart)
 }
 
-func (sst *SSTable) Index() map[[4]byte]uint32 {
+func (sst *SSTable) Index() map[string]uint32 {
 	return sst.index
 }
 

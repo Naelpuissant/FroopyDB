@@ -23,19 +23,19 @@ func TestMaybeCompactL0(t *testing.T) {
 	// Create 3 SSTables (level 0) to trigger compaction
 	t0 := store.AddNew()
 	t0.Open()
-	t0.WriteBlock([4]byte{1, 0, 0, 0}, []byte("A"))
+	t0.WriteBlock([]byte{1}, []byte("A"))
 	t0.WriteIndices()
 	defer t0.Close()
 
 	t1 := store.AddNew()
 	t1.Open()
-	t1.WriteBlock([4]byte{2, 0, 0, 0}, []byte("B"))
+	t1.WriteBlock([]byte{2}, []byte("B"))
 	t1.WriteIndices()
 	defer t1.Close()
 
 	t2 := store.AddNew()
 	t2.Open()
-	t2.WriteBlock([4]byte{3, 0, 0, 0}, []byte("C"))
+	t2.WriteBlock([]byte{3}, []byte("C"))
 	t2.WriteIndices()
 	defer t2.Close()
 
@@ -74,14 +74,14 @@ func TestMaybeCompactL0(t *testing.T) {
 		t.Fatalf("expected 3 keys in merged sstable, got %d", len(newTable.Index()))
 	}
 
-	tests := map[[4]byte]string{
-		{1, 0, 0, 0}: "A",
-		{2, 0, 0, 0}: "B",
-		{3, 0, 0, 0}: "C",
+	tests := map[int]string{
+		1: "A",
+		2: "B",
+		3: "C",
 	}
 
 	for key, expected := range tests {
-		value, err := newTable.Search(key)
+		value, err := newTable.Search([]byte{byte(key)})
 		if err != nil {
 			t.Fatalf("failed to search key %v: %v", key, err)
 		}
@@ -104,20 +104,20 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 
 	t1 := store.AddNew()
 	t1.Open()
-	t1.WriteBlock([4]byte{1, 0, 0, 0}, []byte("a"))
-	t1.WriteBlock([4]byte{4, 0, 0, 0}, []byte("d"))
+	t1.WriteBlock([]byte{1}, []byte("a"))
+	t1.WriteBlock([]byte{4}, []byte("d"))
 	t1.WriteIndices()
 	defer t1.Close()
 
 	t2 := store.AddNew()
 	t2.Open()
-	t2.WriteBlock([4]byte{4, 0, 0, 0}, []byte("D"))
+	t2.WriteBlock([]byte{4}, []byte("D"))
 	t2.WriteIndices()
 	defer t2.Close()
 
 	t3 := store.AddNew()
 	t3.Open()
-	t3.WriteBlock([4]byte{1, 0, 0, 0}, []byte("a"))
+	t3.WriteBlock([]byte{1}, []byte("a"))
 	t3.WriteIndices()
 	defer t3.Close()
 
@@ -125,31 +125,31 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 
 	t4 := store.AddNew()
 	t4.Open()
-	t4.WriteBlock([4]byte{2, 0, 0, 0}, []byte("B"))
-	t4.WriteBlock([4]byte{5, 0, 0, 0}, []byte("e"))
+	t4.WriteBlock([]byte{2}, []byte("B"))
+	t4.WriteBlock([]byte{5}, []byte("e"))
 	t4.WriteIndices()
 	defer t4.Close()
 
 	t5 := store.AddNew()
 	t5.Open()
-	t5.WriteBlock([4]byte{1, 0, 0, 0}, []byte("A"))
-	t5.WriteBlock([4]byte{3, 0, 0, 0}, []byte("C"))
-	t5.WriteBlock([4]byte{5, 0, 0, 0}, []byte("E"))
+	t5.WriteBlock([]byte{1}, []byte("A"))
+	t5.WriteBlock([]byte{3}, []byte("C"))
+	t5.WriteBlock([]byte{5}, []byte("E"))
 	t5.WriteIndices()
 	defer t5.Close()
 
 	compact.MaybeCompactToUpperLevel(store)
 
-	tests := map[[4]byte]string{
-		{1, 0, 0, 0}: "A",
-		{2, 0, 0, 0}: "B",
-		{3, 0, 0, 0}: "C",
-		{4, 0, 0, 0}: "D",
-		{5, 0, 0, 0}: "E",
+	tests := map[int]string{
+		1: "A",
+		2: "B",
+		3: "C",
+		4: "D",
+		5: "E",
 	}
 
 	for key, expected := range tests {
-		value, err := store.Search(key)
+		value, err := store.Search([]byte{byte(key)})
 		if err != nil {
 			t.Fatalf("failed to search key %v: %v", key, err)
 		}

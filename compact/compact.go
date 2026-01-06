@@ -6,12 +6,12 @@ import (
 )
 
 func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
-	compactedTable := map[[4]byte][]byte{}
+	compactedTable := map[string][]byte{}
 
 	for _, table := range tables {
 		table.ResetFilePointer()
 		for idx := range table.Index() {
-			value, err := table.Search(idx)
+			value, err := table.Search([]byte(idx))
 			if err != nil {
 				panic(err) // TODO: handle error properly
 			}
@@ -24,7 +24,7 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	tmpSegment.Open()
 
 	for key, value := range compactedTable {
-		tmpSegment.WriteBlock(key, value)
+		tmpSegment.WriteBlock([]byte(key), value)
 	}
 	tmpSegment.WriteIndices()
 

@@ -125,7 +125,7 @@ func (store *SSTableStore) Replace(old, new *SSTable) {
 	})
 }
 
-func (store *SSTableStore) Search(key [4]byte) ([]byte, error) {
+func (store *SSTableStore) Search(key []byte) ([]byte, error) {
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
 			value, err := level[i].Search(key)
@@ -140,7 +140,7 @@ func (store *SSTableStore) Search(key [4]byte) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (store *SSTableStore) DeleteIndex(key [4]byte) {
+func (store *SSTableStore) DeleteIndex(key []byte) {
 	for _, level := range store.tables {
 		for _, table := range level {
 			table.DeleteIndex(key)

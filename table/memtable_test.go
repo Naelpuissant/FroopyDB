@@ -21,7 +21,7 @@ func TestFlushMemtable(t *testing.T) {
 	memTable.Flush(sst)
 	sst.Ready()
 
-	value1, _ := sst.Search(([4]byte)(x.Uint32ToBytes(uint32(1))))
+	value1, _ := sst.Search(x.Uint32ToBytes(uint32(1)))
 	if string(value1) != "foo" {
 		t.Fatalf("expected 'foo', got %q", value1)
 	}

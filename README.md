@@ -130,6 +130,7 @@ It's getting really interresting, lets add compaction concurrency.
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits
+- [ ] Better corrupted/crashed file recovery
 - [x] Setup CI
 - [ ] Test concurent queries
 - [ ] Recode everything in Rust (lol)

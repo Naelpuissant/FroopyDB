@@ -10,19 +10,18 @@ func main() {
 	defer db.Close()
 
 	println("====GET====")
-	db.Set(1, "foo")
-	println(db.Get(1))
+	db.Set([]byte{1}, []byte("foo"))
+	println(db.Get([]byte{1}))
 
-	db.Set(1, "bar")
-	println(db.Get(1))
-
+	db.Set([]byte{1}, []byte("bar"))
+	println(db.Get([]byte{1}))
 	for i := range 100 {
-		db.Set(i+2, "spam")
+		db.Set([]byte{byte(i + 2)}, []byte("spam"))
 	}
 
 	println("====DELETE====")
-	print(db.Delete(12))
+	print(db.Delete([]byte{12}))
 
 	println("====GET====")
-	print(db.Get(12))
+	print(db.Get([]byte{12}))
 }

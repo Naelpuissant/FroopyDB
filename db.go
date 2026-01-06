@@ -3,9 +3,8 @@ package froopydb
 import (
 	"froopydb/compact"
 	"froopydb/logger"
-	t "froopydb/table"
+	"froopydb/table"
 	"froopydb/wal"
-	"froopydb/x"
 	"os"
 	"sync"
 )
@@ -18,12 +17,12 @@ var (
 type DB struct {
 	logger   *logger.Logger
 	folder   string
-	sstables *t.SSTableStore
-	memTable *t.MemTable
+	sstables *table.SSTableStore
+	memTable *table.MemTable
 
 	immMu        sync.Mutex
-	immMemTables []*t.MemTable
-	flushJobs    chan *t.MemTable
+	immMemTables []*table.MemTable
+	flushJobs    chan *table.MemTable
 }
 
 func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
@@ -43,13 +42,13 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 
 	os.MkdirAll(folder, 0777)
 
-	memTable := t.NewMemTable(
+	memTable := table.NewMemTable(
 		logger,
 		memTableMaxSize,
 		wal.NewWAL(folder, false),
 	)
 
-	sstables, err := t.NewSSTableStore(logger, folder, sstableMaxSize)
+	sstables, err := table.NewSSTableStore(logger, folder, sstableMaxSize)
 	if err != nil {
 		logger.Error("Failed to create SSTable store", "error", err)
 		panic(err)
@@ -59,9 +58,9 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 		logger:       logger,
 		folder:       folder,
 		memTable:     memTable,
-		immMemTables: []*t.MemTable{},
+		immMemTables: []*table.MemTable{},
 		sstables:     sstables,
-		flushJobs:    make(chan *t.MemTable),
+		flushJobs:    make(chan *table.MemTable),
 	}
 
 	go db.flushWorker()
@@ -73,16 +72,13 @@ func (db *DB) Close() {
 	db.sstables.CloseAll()
 }
 
-func (db *DB) Set(key int, value string) string {
-	keyBytes := x.Uint32ToBytes(uint32(key))
-	valueBytes := x.StrToBytes(value)
-
-	if db.memTable.ShouldFlush(keyBytes, valueBytes) {
+func (db *DB) Set(key []byte, value []byte) []byte {
+	if db.memTable.ShouldFlush(key, value) {
 		old := db.memTable
 		db.flushJobs <- old
-		db.memTable = t.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
+		db.memTable = table.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
 	}
-	db.memTable.Set(keyBytes, valueBytes)
+	db.memTable.Set(key, value)
 	return value
 }
 
@@ -98,20 +94,18 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 	return []byte{}, false
 }
 
-func (db *DB) Get(key int) string {
-	keyBytes := x.Uint32ToBytes(uint32(key))
-
-	value, found := db.memTable.Get(keyBytes)
+func (db *DB) Get(key []byte) string {
+	value, found := db.memTable.Get(key)
 	if found {
 		return string(value)
 	}
 
-	value, found = db.getFromImm(keyBytes)
+	value, found = db.getFromImm(key)
 	if found {
 		return string(value)
 	}
 
-	value, err := db.sstables.Search(([4]byte)(keyBytes))
+	value, err := db.sstables.Search(key)
 	if err != nil {
 		println(err)
 	}
@@ -119,9 +113,9 @@ func (db *DB) Get(key int) string {
 	return string(value)
 }
 
-func (db *DB) Delete(key int) string {
-	line := db.Set(key, "\x00")
-	db.sstables.DeleteIndex(([4]byte)(x.Uint32ToBytes(uint32(key))))
+func (db *DB) Delete(key []byte) []byte {
+	line := db.Set(key, []byte{0x00})
+	db.sstables.DeleteIndex(key)
 	return line
 }
 
@@ -130,7 +124,7 @@ func (db *DB) flushWorker() {
 		db.immMemTables = append(db.immMemTables, mt)
 		mt.SetLoggerImmutable()
 
-		newTable := t.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
+		newTable := table.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
 		newTable.Open()
 		mt.Flush(newTable)
 		db.sstables.Add(newTable)
@@ -143,11 +137,11 @@ func (db *DB) flushWorker() {
 	}
 }
 
-func (db *DB) removeImmMemTable(mt *t.MemTable) {
+func (db *DB) removeImmMemTable(mt *table.MemTable) {
 	db.immMu.Lock()
 	defer db.immMu.Unlock()
 
-	newImmMemTables := []*t.MemTable{}
+	newImmMemTables := []*table.MemTable{}
 	for _, immt := range db.immMemTables {
 		if immt != mt {
 			newImmMemTables = append(newImmMemTables, mt)
@@ -156,6 +150,6 @@ func (db *DB) removeImmMemTable(mt *t.MemTable) {
 	db.immMemTables = newImmMemTables
 }
 
-func (db *DB) ImmMemTables() []*t.MemTable {
+func (db *DB) ImmMemTables() []*table.MemTable {
 	return db.immMemTables
 }
