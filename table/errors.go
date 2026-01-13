@@ -5,4 +5,5 @@ import err "errors"
 var (
 	ErrSSTableIndexRecoveryFailed = err.New("failed to recover sstable index")
 	ErrMemTableRecoveryFailed     = err.New("failed to recover memtable")
+	ErrSSTReaderIndexIterFailed   = err.New("failed to reade index item iterator")
 )

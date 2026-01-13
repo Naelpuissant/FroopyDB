@@ -18,12 +18,15 @@ A persistent LSM-tree based/key-value db for educational purpose
 SSTable
 ```
 Data
-|         Data Block        |
-| vlen uint16 | value bytes | ... | vlen uint16 | value bytes
+|            Data Block            |
+| vlen uint16 | value bytes []byte | ... 
+
+Index
+|                  Index Block                   |
+| klen uint16 | key bytes []byte | offset uint32 | ...  
 
 Metadata
-|               Index Block               |
-| klen uint16 | key bytes | offset uint64 | ... | indicesStartOffset uint32
+| level uint16 | increment uint16 | indexStartPos uint32 |
 ```
 
 WAL
@@ -120,13 +123,13 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] add debug logger (create a simple one)
 - [ ] Add unit testing
 - [ ] Split files for each sstable (data, index, metadata)
-- [ ] Allow more or less than 4 bytes keys (maybe useless with types)
-- [ ] range queries
-- [ ] DB stats queries (size, len ?, tables, memtableSize...)
-- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
+- [x] Allow more or less than 4 bytes keys (maybe useless with types)
 - [ ] Create a clear api for user compaction (compaction should be called by the user)
+- [ ] DB stats queries (size, len ?, tables, memtableSize...)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Bench through web api
+- [ ] range queries
+- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits

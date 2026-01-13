@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -18,23 +17,6 @@ func newSSTableName(folder string, level int, incr int, tmp bool) string {
 	}
 	filename := fmt.Sprintf("%d_%d%s", level, incr, prefix)
 	return filepath.Join(folder, filename)
-}
-
-// ParseSSTableName parses "<folder>/<level>_<incr>.sst"
-// Might want to store metadata elsewhere later
-func parseSSTableName(path string) (folder string, level int, incr int) {
-	folder = filepath.Dir(path)
-	base := filepath.Base(path) // e.g. "0_12.sst"
-
-	// Remove extension
-	name := strings.TrimSuffix(base, filepath.Ext(base)) // "0_12"
-
-	parts := strings.Split(name, "_")
-
-	level, _ = strconv.Atoi(parts[0])
-	incr, _ = strconv.Atoi(parts[1])
-
-	return folder, level, incr
 }
 
 type SSTable struct {
@@ -60,49 +42,26 @@ func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable
 }
 
 func NewSSTableFromFile(file *os.File) (*SSTable, error) {
-	fstat, err := file.Stat()
+	sstReader, err := NewSSTReader(file)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
 	}
-	end := fstat.Size()
-
-	endOffset := end - 4
-
-	startOffsetBytes := make([]byte, 4)
-	file.ReadAt(startOffsetBytes, endOffset)
-
-	startOffset := int64(x.BytesToUint32(startOffsetBytes))
-	indexBlockSize := startOffset
 
 	index := map[string]uint32{}
-	for startOffset < endOffset {
-		klenBytes := make([]byte, 2)
-		file.ReadAt(klenBytes, startOffset)
-		startOffset += 2
-
-		klen := x.BytesToUint16(klenBytes)
-		key := make([]byte, klen)
-		file.ReadAt(key, startOffset)
-		startOffset += int64(klen)
-
-		offset := make([]byte, 4)
-		file.ReadAt(offset, startOffset)
-		startOffset += 4
-
-		index[string(key)] = x.BytesToUint32(offset)
+	for item, err := range sstReader.Index() {
+		if err != nil {
+			return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
+		}
+		index[string(item.Key)] = item.Offset
 	}
 
-	if startOffset != endOffset {
-		return nil, fmt.Errorf("%w: %d/%d", ErrSSTableIndexRecoveryFailed, startOffset, endOffset)
-	}
-
-	folder, level, incr := parseSSTableName(file.Name())
+	filename := file.Name()
 	return &SSTable{
-		size:   int(indexBlockSize),
-		folder: folder,
-		level:  level,
-		incr:   incr,
-		name:   file.Name(),
+		size:   int(sstReader.Metadata.IdxOffset),
+		folder: filepath.Dir(filename),
+		level:  int(sstReader.Metadata.Level),
+		incr:   int(sstReader.Metadata.Incr),
+		name:   filename,
 		index:  index,
 		file:   file,
 	}, nil
@@ -151,6 +110,7 @@ func (sst *SSTable) WriteIndices() error {
 		sst.size += 16 + len(key) + 32
 	}
 
+	// index offset pointer
 	if _, err := w.Write(x.Uint32ToBytes(uint32(indexOffset))); err != nil {
 		return err
 	}
@@ -158,6 +118,12 @@ func (sst *SSTable) WriteIndices() error {
 	sst.size += 32
 
 	return w.Flush()
+}
+
+// Footer :
+func (sst *SSTable) WriteFooter() error {
+
+	return nil
 }
 
 func (sst *SSTable) Open() (*os.File, error) {
