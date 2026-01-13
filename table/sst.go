@@ -169,14 +169,23 @@ func (sst *SSTable) Search(key []byte) ([]byte, error) {
 
 func (sst *SSTable) Ready() error {
 	oldName := sst.name
+
 	sst.name = strings.TrimSuffix(sst.name, ".tmp")
+
 	if err := os.Rename(oldName, sst.name); err != nil {
 		return err
 	}
+
 	if err := sst.file.Sync(); err != nil {
 		return err
 	}
+
 	err := sst.setReadOnly()
+	if err != nil {
+		return err
+	}
+
+	sst.reader, err = NewSSTReader(sst.file)
 	return err
 }
 
