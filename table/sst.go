@@ -2,7 +2,6 @@ package table
 
 import (
 	"fmt"
-	"froopydb/x"
 	"io"
 	"os"
 	"path/filepath"
@@ -124,7 +123,7 @@ func (sst *SSTable) WriteMetadata(indexOffset uint32) error {
 }
 
 func (sst *SSTable) FlushWriter() error {
-	return sst.writer.writer.Flush()
+	return sst.writer.Flush()
 }
 
 func (sst *SSTable) Open() (*os.File, error) {
@@ -160,13 +159,8 @@ func (sst *SSTable) Search(key []byte) ([]byte, error) {
 		return []byte{}, nil
 	}
 
-	vlen := make([]byte, 2)
-	if _, err := sst.file.ReadAt(vlen, int64(offset)); err != nil {
-		return []byte{}, err
-	}
-
-	value := make([]byte, x.BytesToUint16(vlen))
-	if _, err := sst.file.ReadAt(value, int64(offset)+2); err != nil {
+	value, err := sst.reader.ReadValueAtOffset(int64(offset))
+	if err != nil {
 		return []byte{}, err
 	}
 

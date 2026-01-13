@@ -98,3 +98,17 @@ func (r *SSTReader) Index() iter.Seq2[*IdxItem, error] {
 		}
 	}
 }
+
+func (r *SSTReader) ReadValueAtOffset(offset int64) ([]byte, error) {
+	vlen := make([]byte, 2)
+	if _, err := r.file.ReadAt(vlen, int64(offset)); err != nil {
+		return []byte{}, err
+	}
+
+	value := make([]byte, x.BytesToUint16(vlen))
+	if _, err := r.file.ReadAt(value, int64(offset)+2); err != nil {
+		return []byte{}, err
+	}
+
+	return value, nil
+}
