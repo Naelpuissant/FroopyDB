@@ -13,7 +13,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
 	// Create temporary directory
-	dir := "../test/compaction_test"
+	dir := "/tmp/froopydb/test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
@@ -95,7 +95,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
 	// Create temporary directory
-	dir := "../test/compaction_test"
+	dir := "/tmp/froopydb/test/compaction_test"
 
 	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
