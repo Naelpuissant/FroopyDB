@@ -1,7 +1,6 @@
 package table
 
 import (
-	"bufio"
 	"fmt"
 	"froopydb/x"
 	"io"
@@ -9,6 +8,27 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+var (
+	// Data
+	VLEN_SIZE = 2
+
+	// Index
+	KLEN_SIZE   = 2
+	OFFSET_SIZE = 4
+
+	//Metadata
+	LEVEL_SIZE      = 2
+	INCR_SIZE       = 2
+	IDX_OFFSET_SIZE = 4
+	METADATA_SIZE   = LEVEL_SIZE + INCR_SIZE + IDX_OFFSET_SIZE
+)
+
+type SSTMetadata struct {
+	Level     uint16
+	Incr      uint16
+	IdxOffset uint32
+}
 
 func newSSTableName(folder string, level int, incr int, tmp bool) string {
 	prefix := ".sst"
@@ -26,6 +46,8 @@ type SSTable struct {
 	incr   int
 	size   int
 	file   *os.File
+	writer *SSTWriter
+	reader *SSTReader
 	index  map[string]uint32
 }
 
@@ -64,66 +86,45 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		name:   filename,
 		index:  index,
 		file:   file,
+		reader: sstReader,
 	}, nil
 }
 
-func (sst *SSTable) WriteBlock(key []byte, value []byte) error {
-	offset, _ := sst.file.Seek(0, io.SeekCurrent)
-	w := bufio.NewWriter(sst.file)
-	vlen := x.Uint16ToBytes(uint16(len(value)))
-
-	if _, err := w.Write(vlen); err != nil {
-		return err
-	}
-	if _, err := w.Write(value); err != nil {
-		return err
-	}
-
-	if len(value) != 0 && value[0] != 0x00 {
-		sst.index[string(key)] = uint32(offset)
-	}
-
-	sst.size += 16 + len(value)
-
-	return w.Flush()
+func (sst *SSTable) InitWriter() {
+	sst.writer = NewSSTWriter(sst.file)
 }
 
-func (sst *SSTable) WriteIndices() error {
-	indexOffset, err := sst.file.Seek(0, io.SeekCurrent)
+func (sst *SSTable) WriteBlock(key []byte, value []byte) error {
+	offset := sst.writer.Pos
+	err := sst.writer.WriteDataBlock(key, value)
 	if err != nil {
 		return err
 	}
 
-	w := bufio.NewWriter(sst.file)
-
-	for key, offset := range sst.index {
-		klen := x.Uint16ToBytes(uint16(len(key)))
-		if _, err := w.Write(klen); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte(key)); err != nil {
-			return err
-		}
-		if _, err := w.Write(x.Uint32ToBytes(offset)); err != nil {
-			return err
-		}
-		sst.size += 16 + len(key) + 32
+	// Tombstone check
+	if len(value) != 0 && value[0] != 0x00 {
+		sst.index[string(key)] = uint32(offset)
 	}
-
-	// index offset pointer
-	if _, err := w.Write(x.Uint32ToBytes(uint32(indexOffset))); err != nil {
-		return err
-	}
-
-	sst.size += 32
-
-	return w.Flush()
-}
-
-// Footer :
-func (sst *SSTable) WriteFooter() error {
 
 	return nil
+}
+
+// WriteIndices writes the index map to the SSTable and returns the offset where it was written.
+func (sst *SSTable) WriteIndices() (uint32, error) {
+	indexOffset := uint32(sst.writer.Pos)
+	err := sst.writer.WriteIndex(sst.index)
+	if err != nil {
+		return 0, err
+	}
+	return indexOffset, nil
+}
+
+func (sst *SSTable) WriteMetadata(indexOffset uint32) error {
+	return sst.writer.WriteMetadata(uint16(sst.level), uint16(sst.incr), indexOffset)
+}
+
+func (sst *SSTable) FlushWriter() error {
+	return sst.writer.writer.Flush()
 }
 
 func (sst *SSTable) Open() (*os.File, error) {
@@ -186,6 +187,7 @@ func (sst *SSTable) Ready() error {
 }
 
 func (sst *SSTable) setReadOnly() error {
+	sst.writer = nil
 	file, err := os.OpenFile(sst.name, os.O_RDONLY, 0777)
 	if err != nil {
 		return err

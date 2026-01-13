@@ -7,27 +7,6 @@ import (
 	"os"
 )
 
-var (
-	// Data
-	VLEN_SIZE = 2
-
-	// Index
-	KLEN_SIZE   = 2
-	OFFSET_SIZE = 4
-
-	//Metadata
-	LEVEL_SIZE      = 2
-	INCR_SIZE       = 2
-	IDX_OFFSET_SIZE = 4
-	METADATA_SIZE   = LEVEL_SIZE + INCR_SIZE + IDX_OFFSET_SIZE
-)
-
-type SSTMetadata struct {
-	Level     uint16
-	Incr      uint16
-	IdxOffset uint32
-}
-
 type IdxItem struct {
 	Key    []byte
 	Offset uint32
@@ -50,10 +29,6 @@ func NewSSTReader(file *os.File) (*SSTReader, error) {
 	}
 	sstReader.SetMetadata()
 	return sstReader, nil
-}
-
-func (r *SSTReader) Close() error {
-	return r.file.Close()
 }
 
 func (r *SSTReader) SetMetadata() {
