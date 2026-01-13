@@ -84,12 +84,12 @@ func (m *MemTable) Flush(sst *SSTable) {
 	// Handle error properly here
 	sst.InitWriter()
 	for elem := m.store.Front(); elem != nil; elem = elem.Next() {
-		err := sst.WriteBlock(elem.Key().([]byte), elem.Value.([]byte))
+		err := sst.WriteDataBlock(elem.Key().([]byte), elem.Value.([]byte))
 		if err != nil {
 			panic(err)
 		}
 	}
-	indexOffset, _ := sst.WriteIndices()
+	indexOffset, _ := sst.WriteIndex()
 	sst.WriteMetadata(indexOffset)
 	sst.FlushWriter()
 	m.wal.Finish()

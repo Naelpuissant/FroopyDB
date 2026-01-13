@@ -25,9 +25,9 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 
 	tmpSegment.InitWriter()
 	for key, value := range compactedTable {
-		tmpSegment.WriteBlock([]byte(key), value)
+		tmpSegment.WriteDataBlock([]byte(key), value)
 	}
-	indexOffset, _ := tmpSegment.WriteIndices()
+	indexOffset, _ := tmpSegment.WriteIndex()
 	tmpSegment.WriteMetadata(indexOffset)
 	tmpSegment.FlushWriter()
 

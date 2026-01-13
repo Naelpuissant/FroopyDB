@@ -94,7 +94,7 @@ func (sst *SSTable) InitWriter() {
 	sst.writer = NewSSTWriter(sst.file)
 }
 
-func (sst *SSTable) WriteBlock(key []byte, value []byte) error {
+func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
 	offset := sst.writer.Pos
 	err := sst.writer.WriteDataBlock(key, value)
 	if err != nil {
@@ -109,8 +109,8 @@ func (sst *SSTable) WriteBlock(key []byte, value []byte) error {
 	return nil
 }
 
-// WriteIndices writes the index map to the SSTable and returns the offset where it was written.
-func (sst *SSTable) WriteIndices() (uint32, error) {
+// WriteIndex writes the index map to the SSTable and returns the offset where it was written.
+func (sst *SSTable) WriteIndex() (uint32, error) {
 	indexOffset := uint32(sst.writer.Pos)
 	err := sst.writer.WriteIndex(sst.index)
 	if err != nil {
