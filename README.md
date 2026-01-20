@@ -117,13 +117,14 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Add concurrency for Compaction
 - [x] Clear split of files for better unit testing (wal, memtable, sst, db)
 - [x] Continue split big files (wal, memtable, sst, db)
-- [ ] Add separeted parser for sstable (to dig)
+- [x] Add separeted parser for sstable (to dig)
 - [x] clean error handling (too add when bored)
 - [x] refactor method privacy (too add when bored)
 - [x] add debug logger (create a simple one)
-- [ ] Add unit testing
-- [ ] Split files for each sstable (data, index, metadata)
+- [ ] Add unit testing (specially on sst reader/writer)
+- [x] Split files for each sstable (data, index, metadata) -> everyting in one file is fine
 - [x] Allow more or less than 4 bytes keys (maybe useless with types)
+- [ ] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
 - [ ] Create a clear api for user compaction (compaction should be called by the user)
 - [ ] DB stats queries (size, len ?, tables, memtableSize...)
 - [ ] Create a new web (api, tcp event loop, grpc...?)

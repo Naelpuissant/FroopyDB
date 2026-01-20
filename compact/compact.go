@@ -2,7 +2,6 @@ package compact
 
 import (
 	t "froopydb/table"
-	"strings"
 )
 
 func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
@@ -103,7 +102,7 @@ func MaybeCompactToUpperLevel(store *t.SSTableStore) {
 	}
 
 	for _, table := range tablesToReplace {
+		table[1].Ready()
 		store.Replace(table[0], table[1])
-		table[1].Rename(strings.TrimSuffix(table[1].Name(), ".tmp"))
 	}
 }
