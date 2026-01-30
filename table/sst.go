@@ -44,6 +44,10 @@ type SSTable struct {
 	level  int
 	incr   int
 	size   int
+
+	minKey string
+	maxKey string
+
 	file   *os.File
 	writer *SSTWriter
 	reader *SSTReader
@@ -69,11 +73,20 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	}
 
 	index := map[string]uint32{}
+	minKey := ""
+	maxKey := ""
 	for item, err := range sstReader.Index() {
 		if err != nil {
 			return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
 		}
-		index[string(item.Key)] = item.Offset
+		key := string(item.Key)
+		index[key] = item.Offset
+		if minKey == "" || key < minKey {
+			minKey = key
+		}
+		if maxKey == "" || key > maxKey {
+			maxKey = key
+		}
 	}
 
 	filename := file.Name()
@@ -83,6 +96,8 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		level:  int(sstReader.Metadata.Level),
 		incr:   int(sstReader.Metadata.Incr),
 		name:   filename,
+		minKey: minKey,
+		maxKey: maxKey,
 		index:  index,
 		file:   file,
 		reader: sstReader,
@@ -93,8 +108,19 @@ func (sst *SSTable) InitWriter() {
 	sst.writer = NewSSTWriter(sst.file)
 }
 
+func (sst *SSTable) setMinMaxKeys(key []byte, offset uint32) {
+	keyStr := string(key)
+	if sst.minKey == "" || keyStr < sst.minKey {
+		sst.minKey = keyStr
+	}
+	if sst.maxKey == "" || keyStr > sst.maxKey {
+		sst.maxKey = keyStr
+	}
+}
+
 func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
-	offset := sst.writer.Pos
+	offset := uint32(sst.writer.Pos)
+	sst.setMinMaxKeys(key, offset)
 	err := sst.writer.WriteDataBlock(key, value)
 	if err != nil {
 		return err
@@ -102,7 +128,7 @@ func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
 
 	// Tombstone check
 	if len(value) != 0 && value[0] != 0x00 {
-		sst.index[string(key)] = uint32(offset)
+		sst.index[string(key)] = offset
 	}
 
 	return nil
@@ -202,26 +228,8 @@ func (sst *SSTable) setReadOnly() error {
 }
 
 // Get min and max keys in the SSTable
-// Might want to store this metadata elsewhere later
 func (sst *SSTable) GetMinMax() (string, string) {
-	if len(sst.index) == 0 {
-		return "", ""
-	}
-
-	// Awfully inefficient, but whatever for now
-	minKey := string([]byte{255, 255, 255, 255, 255, 255, 255, 255})
-	maxKey := string([]byte{0, 0, 0, 0, 0, 0, 0, 0})
-
-	for key := range sst.index {
-		if key < minKey {
-			minKey = key
-		}
-		if key > maxKey {
-			maxKey = key
-		}
-	}
-
-	return minKey, maxKey
+	return sst.minKey, sst.maxKey
 }
 
 func (sst *SSTable) ResetFilePointer() {
