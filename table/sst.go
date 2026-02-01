@@ -108,7 +108,7 @@ func (sst *SSTable) InitWriter() {
 	sst.writer = NewSSTWriter(sst.file)
 }
 
-func (sst *SSTable) setMinMaxKeys(key []byte, offset uint32) {
+func (sst *SSTable) setMinMaxKeys(key []byte) {
 	keyStr := string(key)
 	if sst.minKey == "" || keyStr < sst.minKey {
 		sst.minKey = keyStr
@@ -120,7 +120,7 @@ func (sst *SSTable) setMinMaxKeys(key []byte, offset uint32) {
 
 func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
 	offset := uint32(sst.writer.Pos)
-	sst.setMinMaxKeys(key, offset)
+	sst.setMinMaxKeys(key)
 	err := sst.writer.WriteDataBlock(key, value)
 	if err != nil {
 		return err
@@ -206,6 +206,8 @@ func (sst *SSTable) Ready() error {
 		return err
 	}
 
+	sst.size = int(sst.writer.Pos)
+
 	err := sst.setReadOnly()
 	if err != nil {
 		return err
@@ -250,4 +252,8 @@ func (sst *SSTable) Incr() int {
 
 func (sst *SSTable) Name() string {
 	return sst.name
+}
+
+func (sst *SSTable) Len() int {
+	return len(sst.index)
 }

@@ -151,3 +151,23 @@ func (store *SSTableStore) DeleteIndex(key []byte) {
 func (store *SSTableStore) Tables() map[int][]*SSTable {
 	return store.tables
 }
+
+func (store *SSTableStore) TotalKeys() int {
+	n := 0
+	for _, level := range store.tables {
+		for _, table := range level {
+			n += table.Len()
+		}
+	}
+	return n
+}
+
+func (store *SSTableStore) TotalSize() int {
+	n := 0
+	for _, level := range store.tables {
+		for _, table := range level {
+			n += table.size
+		}
+	}
+	return n
+}

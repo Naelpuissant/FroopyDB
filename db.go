@@ -14,6 +14,15 @@ var (
 	MB = 1024 * KB
 )
 
+type DBMetrics struct {
+	TotalKeys    int `json:"totalKeys"`
+	MemTableKeys int `json:"memTableKeys"`
+	SSTableKeys  int `json:"sstableKeys"`
+	NumSSTables  int `json:"numSSTables"`
+	MemTableSize int `json:"memTableSize"`
+	DiskStorage  int `json:"diskStorage"`
+}
+
 type DB struct {
 	logger   *logger.Logger
 	folder   string
@@ -74,9 +83,13 @@ func (db *DB) Close() {
 
 func (db *DB) Set(key []byte, value []byte) []byte {
 	if db.memTable.ShouldFlush(key, value) {
-		old := db.memTable
-		db.flushJobs <- old
-		db.memTable = table.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
+		// Check if it's just an update (key already exists)
+		_, found := db.memTable.Get(key)
+		if !found {
+			old := db.memTable
+			db.flushJobs <- old
+			db.memTable = table.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
+		}
 	}
 	db.memTable.Set(key, value)
 	return value
@@ -117,6 +130,25 @@ func (db *DB) Delete(key []byte) []byte {
 	line := db.Set(key, []byte{0x00})
 	db.sstables.DeleteIndex(key)
 	return line
+}
+
+// Metrics returns a json format of the database metrics
+// metrics include total keys, number of SSTables, MemTable size, SSTables size
+func (db *DB) Metrics() DBMetrics {
+	memTableKeys := db.memTable.Len()
+	sstKeys := db.sstables.TotalKeys()
+	numSST := db.sstables.Len()
+	memTableSize := db.memTable.Size
+	diskStorage := db.sstables.TotalSize()
+
+	return DBMetrics{
+		TotalKeys:    memTableKeys + sstKeys,
+		MemTableKeys: memTableKeys,
+		SSTableKeys:  sstKeys,
+		NumSSTables:  numSST,
+		MemTableSize: memTableSize,
+		DiskStorage:  diskStorage,
+	}
 }
 
 func (db *DB) flushWorker() {

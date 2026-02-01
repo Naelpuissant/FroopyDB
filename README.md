@@ -124,9 +124,9 @@ It's getting really interresting, lets add compaction concurrency.
 - [ ] Add unit testing (specially on sst reader/writer)
 - [x] Split files for each sstable (data, index, metadata) -> everyting in one file is fine
 - [x] Allow more or less than 4 bytes keys (maybe useless with types)
-- [ ] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
+- [x] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
 - [ ] Create a clear api for user compaction (compaction should be called by the user)
-- [ ] DB stats queries (size, len ?, tables, memtableSize...)
+- [x] DB stats queries (size, len ?, tables, memtableSize...)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Bench through web api
 - [ ] range queries

@@ -14,7 +14,7 @@ type MemTable struct {
 	logger *logger.Logger
 
 	maxSize int //Bytes
-	size    int //Bytes
+	Size    int //Bytes
 
 	wal   *wal.WAL
 	store *skiplist.SkipList
@@ -36,7 +36,7 @@ func NewMemTable(logger *logger.Logger, maxSize int, wal *wal.WAL) *MemTable {
 
 	return &MemTable{
 		maxSize: maxSize,
-		size:    memTableSize,
+		Size:    memTableSize,
 		wal:     wal,
 		store:   store,
 	}
@@ -97,9 +97,19 @@ func (m *MemTable) Flush(sst *SSTable) {
 }
 
 func (m *MemTable) Set(key, value []byte) {
+
+	// Adjust size for overwritten keys
+	// In a perfect world, we would avoid this lookup by keeping
+	// track of size at skiplist level
+	oldValue, found := m.store.GetValue(key)
+
 	m.store.Set(key, value)
 	m.wal.Write(key, value)
-	m.size += len(key) + len(value)
+
+	if found {
+		m.Size -= len(key) + len(oldValue.([]byte))
+	}
+	m.Size += len(key) + len(value)
 }
 
 func (m *MemTable) Get(key []byte) ([]byte, bool) {
@@ -111,7 +121,7 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 }
 
 func (m *MemTable) ShouldFlush(key, value []byte) bool {
-	return m.maxSize <= m.size+len(key)+len(value)
+	return m.maxSize <= m.Size+len(key)+len(value)
 }
 
 func (m *MemTable) MaxSize() int {
@@ -120,4 +130,8 @@ func (m *MemTable) MaxSize() int {
 
 func (m *MemTable) SetLoggerImmutable() {
 	m.wal.Immutable()
+}
+
+func (m *MemTable) Len() int {
+	return m.store.Len()
 }
