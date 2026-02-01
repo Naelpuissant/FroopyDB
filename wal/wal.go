@@ -23,7 +23,7 @@ func openLogFile(folder string, tryRecover bool) *os.File {
 
 		for _, entry := range dir {
 			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
-				file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_APPEND|os.O_RDWR, 0777)
+				file, _ := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_APPEND|os.O_RDWR, 0644)
 				return file
 			}
 		}
@@ -32,7 +32,7 @@ func openLogFile(folder string, tryRecover bool) *os.File {
 	now := time.Now().UnixMilli()
 	filename := fmt.Sprintf("%d_%d.log", now, rand.Intn(10000))
 	path := filepath.Join(folder, filename)
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create WAL file %s: %v", path, err))
 	}

@@ -125,18 +125,21 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Split files for each sstable (data, index, metadata) -> everyting in one file is fine
 - [x] Allow more or less than 4 bytes keys (maybe useless with types)
 - [x] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
-- [ ] Create a clear api for user compaction (compaction should be called by the user)
+- [x] Create a clear api for user compaction (compaction should be called by the user)
 - [x] DB stats queries (size, len ?, tables, memtableSize...)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Bench through web api
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
+- [ ] Use a DBConfig object with a DefaultConfig
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits
 - [ ] Better corrupted/crashed file recovery
 - [x] Setup CI
 - [ ] Test concurent queries
+- [ ] Improve compaction algo (multi level)
+- [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] Recode everything in Rust (lol)
 - [ ] Python binding
 

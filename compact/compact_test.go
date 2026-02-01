@@ -12,11 +12,7 @@ import (
 func TestMaybeCompactL0(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
-	// Create temporary directory
-	dir := "/tmp/froopydb/test/compaction_test"
-
-	os.RemoveAll(dir)
-	os.Mkdir(dir, 0777)
+	dir := t.TempDir()
 
 	store, _ := table.NewSSTableStore(logger, dir, 100000)
 
@@ -73,7 +69,7 @@ func TestMaybeCompactL0(t *testing.T) {
 	}
 
 	// Open the new merged table
-	f, err := os.OpenFile(filepath.Join(dir, newFile), os.O_RDONLY, 0777)
+	f, err := os.OpenFile(filepath.Join(dir, newFile), os.O_RDONLY, 0644)
 	if err != nil {
 		t.Fatalf("failed to open new sstable: %v", err)
 	}
@@ -106,11 +102,7 @@ func TestMaybeCompactL0(t *testing.T) {
 func TestMaybeCompactToUpperLevel(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
-	// Create temporary directory
-	dir := "/tmp/froopydb/test/compaction_test"
-
-	os.RemoveAll(dir)
-	os.Mkdir(dir, 0777)
+	dir := t.TempDir()
 
 	store, _ := table.NewSSTableStore(logger, dir, 100000)
 

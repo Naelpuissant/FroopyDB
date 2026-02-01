@@ -21,6 +21,7 @@ type DBMetrics struct {
 	NumSSTables  int `json:"numSSTables"`
 	MemTableSize int `json:"memTableSize"`
 	DiskStorage  int `json:"diskStorage"`
+	PendingFlush int `json:"pendingFlush"`
 }
 
 type DB struct {
@@ -32,6 +33,7 @@ type DB struct {
 	immMu        sync.Mutex
 	immMemTables []*table.MemTable
 	flushJobs    chan *table.MemTable
+	wg           sync.WaitGroup
 }
 
 func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
@@ -87,6 +89,7 @@ func (db *DB) Set(key []byte, value []byte) []byte {
 		_, found := db.memTable.Get(key)
 		if !found {
 			old := db.memTable
+			db.wg.Add(1)
 			db.flushJobs <- old
 			db.memTable = table.NewMemTable(db.logger, old.MaxSize(), wal.NewWAL(db.folder, false))
 		}
@@ -140,6 +143,7 @@ func (db *DB) Metrics() DBMetrics {
 	numSST := db.sstables.Len()
 	memTableSize := db.memTable.Size
 	diskStorage := db.sstables.TotalSize()
+	pendingFlush := len(db.immMemTables)
 
 	return DBMetrics{
 		TotalKeys:    memTableKeys + sstKeys,
@@ -148,7 +152,17 @@ func (db *DB) Metrics() DBMetrics {
 		NumSSTables:  numSST,
 		MemTableSize: memTableSize,
 		DiskStorage:  diskStorage,
+		PendingFlush: pendingFlush,
 	}
+}
+
+func (db *DB) Compact() {
+	compact.MaybeCompactToUpperLevel(db.sstables)
+	compact.MaybeCompactL0(db.sstables)
+}
+
+func (db *DB) WaitFlush() {
+	db.wg.Wait()
 }
 
 func (db *DB) flushWorker() {
@@ -157,15 +171,20 @@ func (db *DB) flushWorker() {
 		mt.SetLoggerImmutable()
 
 		newTable := table.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
-		newTable.Open()
-		mt.Flush(newTable)
+		_, err := newTable.Open()
+		if err != nil {
+			db.logger.Error("Failed to open new SSTable", "error", err)
+		}
+
+		err = mt.Flush(newTable)
+		if err != nil {
+			db.logger.Error("Failed to flush memtable", "error", err)
+		}
+
 		db.sstables.Add(newTable)
 
 		db.removeImmMemTable(mt)
-
-		// Compact -> should be called by the user ?
-		compact.MaybeCompactToUpperLevel(db.sstables)
-		compact.MaybeCompactL0(db.sstables)
+		db.wg.Done()
 	}
 }
 

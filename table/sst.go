@@ -153,7 +153,7 @@ func (sst *SSTable) FlushWriter() error {
 }
 
 func (sst *SSTable) Open() (*os.File, error) {
-	file, err := os.OpenFile(sst.name, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0777)
+	file, err := os.OpenFile(sst.name, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (sst *SSTable) Ready() error {
 
 func (sst *SSTable) setReadOnly() error {
 	sst.writer = nil
-	file, err := os.OpenFile(sst.name, os.O_RDONLY, 0777)
+	file, err := os.OpenFile(sst.name, os.O_RDONLY, 0444)
 	if err != nil {
 		return err
 	}

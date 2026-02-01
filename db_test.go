@@ -3,28 +3,20 @@ package froopydb_test
 import (
 	fpdb "froopydb"
 	"froopydb/logger"
-	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 )
 
 var (
-	db              *fpdb.DB
 	memTableMaxSize = fpdb.KB
 )
 
-func TestMain(m *testing.M) {
-	os.RemoveAll("/tmp/froopydb/test/db")
-	db = fpdb.NewDB("/tmp/froopydb/test/db", 5, memTableMaxSize, true, logger.ERROR)
-
-	code := m.Run()
-
-	db.Close()
-
-	os.Exit(code)
-}
-
 func TestGetSet(t *testing.T) {
+	dir := t.TempDir()
+	db := fpdb.NewDB(dir, 5, memTableMaxSize, true, logger.ERROR)
+	defer db.Close()
+
 	db.Set([]byte("1"), []byte("foo"))
 	db.Set([]byte("1"), []byte("bar"))
 	result := db.Get([]byte("1"))
@@ -34,11 +26,18 @@ func TestGetSet(t *testing.T) {
 
 	metrics := db.Metrics()
 	if metrics.TotalKeys != 1 && metrics.MemTableSize != 4 {
+		t.Logf("Metrics: %+v", metrics)
 		t.Fatalf("DB total keys should be 1 and memtable size should be 4, got %d keys and %d size", metrics.TotalKeys, metrics.MemTableSize)
 	}
 }
 
 func TestGetMultipleSegments(t *testing.T) {
+	dir := t.TempDir()
+	dir = filepath.Dir(dir)
+
+	db := fpdb.NewDB(dir, 5, memTableMaxSize, true, logger.ERROR)
+	defer db.Close()
+
 	db.Set([]byte("1"), []byte("foo"))
 	db.Set([]byte("1"), []byte("bar"))
 
@@ -52,6 +51,8 @@ func TestGetMultipleSegments(t *testing.T) {
 		t.Fatalf("Updated key 1 must be 'bar': %s", result)
 	}
 
+	db.WaitFlush()
+
 	metrics := db.Metrics()
 	if metrics.NumSSTables != 1 || metrics.DiskStorage == 0 {
 		t.Fatalf("DB should have 1 SSTable and non-zero disk storage, got %d SSTables and %d disk storage", metrics.NumSSTables, metrics.DiskStorage)
@@ -59,6 +60,10 @@ func TestGetMultipleSegments(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	dir := t.TempDir()
+	db := fpdb.NewDB(dir, 5, memTableMaxSize, true, logger.ERROR)
+	defer db.Close()
+
 	db.Set([]byte("1"), []byte("foo"))
 
 	db.Delete([]byte("1"))
@@ -69,9 +74,10 @@ func TestDelete(t *testing.T) {
 }
 
 func TestCompactAndMerge(t *testing.T) {
-	os.RemoveAll("/tmp/froopydb/test/db")
-	olddb := db
-	db = fpdb.NewDB("/tmp/froopydb/test/db", 5, 100, true, logger.ERROR)
+	dir := t.TempDir()
+	db := fpdb.NewDB(dir, 5, 100, true, logger.ERROR)
+	defer db.Close()
+
 	for i := range 100 {
 		db.Set([]byte{byte(i)}, []byte("pad"))
 	}
@@ -83,6 +89,8 @@ func TestCompactAndMerge(t *testing.T) {
 	db.Delete([]byte("3"))
 	db.Set([]byte("2"), []byte("hey!"))
 
+	db.Compact()
+
 	result := db.Get([]byte("1"))
 	if string(result) != "foo" {
 		t.Fatalf("Key 1 must foo: %s", result)
@@ -92,17 +100,16 @@ func TestCompactAndMerge(t *testing.T) {
 	if string(result) != "" {
 		t.Fatalf("Key 3 must be deleted: %s", result)
 	}
-	db = olddb
 }
 
-func BenchmarkSet(b *testing.B) {
-	for i := 0; i <= b.N; i++ {
-		db.Set([]byte{byte(i)}, []byte("load"))
-	}
-}
+// func BenchmarkSet(b *testing.B) {
+// 	for i := 0; i <= b.N; i++ {
+// 		db.Set([]byte{byte(i)}, []byte("load"))
+// 	}
+// }
 
-func BenchmarkGet(b *testing.B) {
-	for i := 0; i <= b.N; i++ {
-		db.Get([]byte{byte(i)})
-	}
-}
+// func BenchmarkGet(b *testing.B) {
+// 	for i := 0; i <= b.N; i++ {
+// 		db.Get([]byte{byte(i)})
+// 	}
+// }

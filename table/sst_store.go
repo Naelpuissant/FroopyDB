@@ -51,7 +51,7 @@ func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, fold
 
 	for _, entry := range dir {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sst") {
-			file, err := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_RDONLY, 0777)
+			file, err := os.OpenFile(filepath.Join(folder, entry.Name()), os.O_RDONLY, 0444)
 			if err != nil {
 				return err
 			}

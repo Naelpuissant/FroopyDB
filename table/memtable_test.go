@@ -19,7 +19,6 @@ func TestFlushMemtable(t *testing.T) {
 	sst.Open()
 	defer sst.Close()
 	memTable.Flush(sst)
-	sst.Ready()
 
 	value1, _ := sst.Search(x.Uint32ToBytes(uint32(1)))
 	if string(value1) != "foo" {

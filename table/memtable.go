@@ -80,20 +80,36 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) (int, error) 
 	return memTableSize, nil
 }
 
-func (m *MemTable) Flush(sst *SSTable) {
+func (m *MemTable) Flush(sst *SSTable) error {
 	// Handle error properly here
 	sst.InitWriter()
 	for elem := m.store.Front(); elem != nil; elem = elem.Next() {
 		err := sst.WriteDataBlock(elem.Key().([]byte), elem.Value.([]byte))
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
-	indexOffset, _ := sst.WriteIndex()
-	sst.WriteMetadata(indexOffset)
-	sst.FlushWriter()
+	indexOffset, err := sst.WriteIndex()
+	if err != nil {
+		return err
+	}
+
+	err = sst.WriteMetadata(indexOffset)
+	if err != nil {
+		return err
+	}
+
+	err = sst.FlushWriter()
+	if err != nil {
+		return err
+	}
+
 	m.wal.Finish()
-	sst.Ready()
+	err = sst.Ready()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *MemTable) Set(key, value []byte) {

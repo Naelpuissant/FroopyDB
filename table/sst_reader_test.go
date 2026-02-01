@@ -32,10 +32,9 @@ func TestSSTableReaderIndex(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to iterate index: %v", err)
 		}
-		value, err := sstReader.ReadValueAtOffset(int64(item.Offset))
+		_, err := sstReader.ReadValueAtOffset(int64(item.Offset))
 		if err != nil {
 			t.Fatalf("failed to read value at offset %d: %v", item.Offset, err)
 		}
-		println(item.Key[0], string(value))
 	}
 }
