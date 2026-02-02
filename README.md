@@ -140,6 +140,7 @@ It's getting really interresting, lets add compaction concurrency.
 - [ ] Test concurent queries
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
+- [ ] add transactions
 - [ ] Recode everything in Rust (lol)
 - [ ] Python binding
 
