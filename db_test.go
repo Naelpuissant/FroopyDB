@@ -14,7 +14,12 @@ var (
 
 func TestGetSet(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(dir, memTableMaxSize, true, logger.ERROR)
+	db := fpdb.NewDB(&fpdb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: memTableMaxSize,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
 	defer db.Close()
 
 	db.Set([]byte("1"), []byte("foo"))
@@ -35,7 +40,12 @@ func TestGetMultipleSegments(t *testing.T) {
 	dir := t.TempDir()
 	dir = filepath.Dir(dir)
 
-	db := fpdb.NewDB(dir, memTableMaxSize, true, logger.ERROR)
+	db := fpdb.NewDB(&fpdb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: memTableMaxSize,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
 	defer db.Close()
 
 	db.Set([]byte("1"), []byte("foo"))
@@ -61,7 +71,12 @@ func TestGetMultipleSegments(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(dir, memTableMaxSize, true, logger.ERROR)
+	db := fpdb.NewDB(&fpdb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: memTableMaxSize,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
 	defer db.Close()
 
 	db.Set([]byte("1"), []byte("foo"))
@@ -75,7 +90,12 @@ func TestDelete(t *testing.T) {
 
 func TestCompactAndMerge(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(dir, 100, true, logger.ERROR)
+	db := fpdb.NewDB(&fpdb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: 100,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
 	defer db.Close()
 
 	for i := range 100 {

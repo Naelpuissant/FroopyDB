@@ -24,12 +24,27 @@ type DBMetrics struct {
 	PendingFlush int `json:"pendingFlush"`
 }
 
-type DBConfig struct{}
+type DBConfig struct {
+	Folder          string
+	MemTableMaxSize int
+	ClearOnStart    bool
+	LogLevel        int
+}
+
+func DefaultConfig(folder string) *DBConfig {
+	return &DBConfig{
+		Folder:          folder,
+		MemTableMaxSize: 64 * MB,
+		ClearOnStart:    false,
+		LogLevel:        logger.INFO,
+	}
+}
 
 type DB struct {
 	logger   *logger.Logger
 	folder   string
 	sstables *table.SSTableStore
+
 	memTable *table.MemTable
 
 	immMu        sync.Mutex
@@ -38,26 +53,22 @@ type DB struct {
 	wg           sync.WaitGroup
 }
 
-func NewDB(folder string, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
-	if memTableMaxSize == 0 {
-		memTableMaxSize = 64 * MB
+func NewDB(config *DBConfig) *DB {
+	if config.ClearOnStart {
+		os.RemoveAll(config.Folder)
 	}
 
-	if clearOnStart {
-		os.RemoveAll(folder)
-	}
+	logger := logger.NewLogger(config.LogLevel)
 
-	logger := logger.NewLogger(logLevel)
-
-	os.MkdirAll(folder, 0777)
+	os.MkdirAll(config.Folder, 0777)
 
 	memTable := table.NewMemTable(
 		logger,
-		memTableMaxSize,
-		wal.NewWAL(folder, false),
+		config.MemTableMaxSize,
+		wal.NewWAL(config.Folder, false),
 	)
 
-	sstables, err := table.NewSSTableStore(logger, folder)
+	sstables, err := table.NewSSTableStore(logger, config.Folder)
 	if err != nil {
 		logger.Error("Failed to create SSTable store", "error", err)
 		panic(err)
@@ -65,7 +76,7 @@ func NewDB(folder string, memTableMaxSize int, clearOnStart bool, logLevel int) 
 
 	db := &DB{
 		logger:       logger,
-		folder:       folder,
+		folder:       config.Folder,
 		memTable:     memTable,
 		immMemTables: []*table.MemTable{},
 		sstables:     sstables,

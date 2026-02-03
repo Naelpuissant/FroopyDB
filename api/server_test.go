@@ -12,7 +12,12 @@ import (
 )
 
 func TestSetGetHandlers(t *testing.T) {
-	db = froopydb.NewDB(t.TempDir(), 0, false, 1)
+	db = froopydb.NewDB(&froopydb.DBConfig{
+		Folder:          t.TempDir(),
+		MemTableMaxSize: 0,
+		ClearOnStart:    false,
+		LogLevel:        1,
+	})
 	defer db.Close()
 
 	// Test SET
@@ -48,7 +53,12 @@ func TestSetGetHandlers(t *testing.T) {
 }
 
 func BenchmarkGetSetEndpoints(b *testing.B) {
-	db = froopydb.NewDB(b.TempDir(), 0, false, 1)
+	db = froopydb.NewDB(&froopydb.DBConfig{
+		Folder:          b.TempDir(),
+		MemTableMaxSize: 0,
+		ClearOnStart:    false,
+		LogLevel:        1,
+	})
 	defer db.Close()
 
 	b.ReportAllocs()
