@@ -127,11 +127,12 @@ It's getting really interresting, lets add compaction concurrency.
 - [x] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
 - [x] Create a clear api for user compaction (compaction should be called by the user)
 - [x] DB stats queries (size, len ?, tables, memtableSize...)
+- [ ] Use a DBConfig object with a DefaultConfig
 - [ ] Create a new web (api, tcp event loop, grpc...?)
 - [ ] Bench through web api
+- [ ] Improve benchs to have a clear idea on perfs
 - [ ] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
-- [ ] Use a DBConfig object with a DefaultConfig
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits

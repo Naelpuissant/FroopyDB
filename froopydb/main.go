@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	db := fpdb.NewDB("/tmp/froopydb/test/main", 0, 256, false, logger.DEBUG)
+	db := fpdb.NewDB("/tmp/froopydb/test/main", 256, false, logger.DEBUG)
 	defer db.Close()
 
 	println("====GET====")

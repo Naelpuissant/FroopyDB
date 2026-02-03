@@ -65,7 +65,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	// sensible defaults; adjust as needed
-	db = froopydb.NewDB("/tmp/froopydbserv", 0, 0, false, 1)
+	db = froopydb.NewDB("/tmp/froopydbserv", 0, false, 1)
 	defer db.Close()
 
 	mux := http.NewServeMux()

@@ -13,14 +13,13 @@ import (
 type SSTableStore struct {
 	logger *logger.Logger
 
-	tables         map[int][]*SSTable
-	maxLevel       int
-	folder         string
-	sstableMaxSize int
-	mu             sync.Mutex
+	tables   map[int][]*SSTable
+	maxLevel int
+	folder   string
+	mu       sync.Mutex
 }
 
-func NewSSTableStore(logger *logger.Logger, folder string, sstableMaxSize int) (*SSTableStore, error) {
+func NewSSTableStore(logger *logger.Logger, folder string) (*SSTableStore, error) {
 	maxLevel := 1
 	tables := map[int][]*SSTable{}
 	for i := range maxLevel {
@@ -35,11 +34,10 @@ func NewSSTableStore(logger *logger.Logger, folder string, sstableMaxSize int) (
 	logger.Debug("Loaded SSTables from folder", "folder", folder, "tables", len(tables))
 
 	return &SSTableStore{
-		logger:         logger,
-		tables:         tables,
-		maxLevel:       1,
-		folder:         folder,
-		sstableMaxSize: sstableMaxSize,
+		logger:   logger,
+		tables:   tables,
+		maxLevel: 1,
+		folder:   folder,
 	}, nil
 }
 

@@ -14,7 +14,7 @@ func TestMaybeCompactL0(t *testing.T) {
 
 	dir := t.TempDir()
 
-	store, _ := table.NewSSTableStore(logger, dir, 100000)
+	store, _ := table.NewSSTableStore(logger, dir)
 
 	// Create 3 SSTables (level 0) to trigger compaction
 	t0 := store.AddNew()
@@ -104,7 +104,7 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 
 	dir := t.TempDir()
 
-	store, _ := table.NewSSTableStore(logger, dir, 100000)
+	store, _ := table.NewSSTableStore(logger, dir)
 
 	t0 := store.AddNew()
 	t0.Open()

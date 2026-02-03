@@ -24,6 +24,8 @@ type DBMetrics struct {
 	PendingFlush int `json:"pendingFlush"`
 }
 
+type DBConfig struct{}
+
 type DB struct {
 	logger   *logger.Logger
 	folder   string
@@ -36,11 +38,7 @@ type DB struct {
 	wg           sync.WaitGroup
 }
 
-func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
-	if sstableMaxSize == 0 {
-		sstableMaxSize = 1000
-	}
-
+func NewDB(folder string, memTableMaxSize int, clearOnStart bool, logLevel int) *DB {
 	if memTableMaxSize == 0 {
 		memTableMaxSize = 64 * MB
 	}
@@ -59,7 +57,7 @@ func NewDB(folder string, sstableMaxSize int, memTableMaxSize int, clearOnStart 
 		wal.NewWAL(folder, false),
 	)
 
-	sstables, err := table.NewSSTableStore(logger, folder, sstableMaxSize)
+	sstables, err := table.NewSSTableStore(logger, folder)
 	if err != nil {
 		logger.Error("Failed to create SSTable store", "error", err)
 		panic(err)

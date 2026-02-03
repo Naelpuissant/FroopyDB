@@ -9,7 +9,7 @@ import (
 func TestSSTableStoreAddNew(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
-	store, _ := table.NewSSTableStore(logger, "/tmp", 100000)
+	store, _ := table.NewSSTableStore(logger, "/tmp")
 
 	sst1 := store.AddNew()
 	if sst1.Name() != "/tmp/0_1.sst" {
