@@ -122,14 +122,27 @@ func TestCompactAndMerge(t *testing.T) {
 	}
 }
 
-// func BenchmarkSet(b *testing.B) {
-// 	for i := 0; i <= b.N; i++ {
-// 		db.Set([]byte{byte(i)}, []byte("load"))
-// 	}
-// }
+func BenchmarkSet(b *testing.B) {
+	dir := b.TempDir()
+	db := fpdb.NewDB(fpdb.DefaultConfig(dir))
+	defer db.Close()
 
-// func BenchmarkGet(b *testing.B) {
-// 	for i := 0; i <= b.N; i++ {
-// 		db.Get([]byte{byte(i)})
-// 	}
-// }
+	for b.Loop() {
+		db.Set([]byte(strconv.Itoa(b.N)), []byte("load"))
+	}
+}
+
+func BenchmarkGet(b *testing.B) {
+	dir := b.TempDir()
+	db := fpdb.NewDB(fpdb.DefaultConfig(dir))
+	defer db.Close()
+
+	// Populate the database
+	for i := 0; i < b.N; i++ {
+		db.Set([]byte(strconv.Itoa(i)), []byte("load"))
+	}
+
+	for b.Loop() {
+		db.Get([]byte(strconv.Itoa(b.N)))
+	}
+}
