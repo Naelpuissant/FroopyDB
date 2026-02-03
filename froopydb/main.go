@@ -1,11 +1,15 @@
 package main
 
 import (
-	fpdb "froopydb"
+	"flag"
+	"froopydb"
 )
 
 func main() {
-	db := fpdb.NewDB(fpdb.DefaultConfig("/tmp/froopydb/test/main"))
+	folder := flag.String("folder", "./.froopydb", "folder path for the database")
+	flag.Parse()
+
+	db := froopydb.NewDB(froopydb.DefaultConfig(*folder))
 	defer db.Close()
 
 	println("====GET====")
