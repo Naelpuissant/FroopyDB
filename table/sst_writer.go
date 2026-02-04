@@ -23,7 +23,7 @@ func NewSSTWriter(file *os.File) *SSTWriter {
 }
 
 // WriteDataBlock writes a data block (value) to the SSTable.
-func (w *SSTWriter) WriteDataBlock(key []byte, value []byte) error {
+func (w *SSTWriter) WriteDataBlock(value []byte) error {
 	vlen := uint16(len(value))
 	vlenBytes := x.Uint16ToBytes(vlen)
 

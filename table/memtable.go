@@ -1,6 +1,7 @@
 package table
 
 import (
+	"bytes"
 	"fmt"
 	"froopydb/logger"
 	"froopydb/wal"
@@ -134,6 +135,36 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 		return []byte{}, false
 	}
 	return value.([]byte), found
+}
+
+// Get range of keys from fromKey to toKey (inclusive)
+func (m *MemTable) Range(res *skiplist.SkipList, fromKey []byte, toKey []byte) {
+	start := m.store.Front()
+	if start == nil {
+		return
+	}
+
+	end := m.store.Back()
+	if bytes.Compare(end.Key().([]byte), fromKey) < 0 || bytes.Compare(start.Key().([]byte), toKey) > 0 {
+		return
+	}
+
+	for elem := start; elem != nil; elem = elem.Next() {
+		key := elem.Key().([]byte)
+
+		if bytes.Compare(key, fromKey) < 0 {
+			continue
+		}
+
+		if bytes.Compare(key, toKey) > 0 {
+			break
+		}
+
+		value := elem.Value.([]byte)
+		if len(value) != 0 && value[0] != 0x00 {
+			res.Set(key, value)
+		}
+	}
 }
 
 func (m *MemTable) ShouldFlush(key, value []byte) bool {

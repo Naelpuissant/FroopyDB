@@ -1,6 +1,7 @@
 package froopydb_test
 
 import (
+	"fmt"
 	fpdb "froopydb"
 	"froopydb/logger"
 	"path/filepath"
@@ -85,6 +86,67 @@ func TestDelete(t *testing.T) {
 	result := db.Get([]byte("1"))
 	if string(result) != "" {
 		t.Fatalf("Key 1 must be deleted: %s", result)
+	}
+}
+
+func TestRange(t *testing.T) {
+	dir := t.TempDir()
+	db := fpdb.NewDB(&fpdb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: 128,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
+	defer db.Close()
+
+	for i := range 100 {
+		key := fmt.Sprintf("%03d", i)
+		db.Set([]byte(key), []byte("foo"))
+	}
+
+	db.WaitFlush()
+
+	result := db.Range([]byte("010"), []byte("020"))
+	if result.Len() != 11 {
+		t.Fatalf("Range should return 11 items, got %d", result.Len())
+	}
+
+	result = db.Range([]byte("090"), []byte("099"))
+	if result.Len() != 10 {
+		t.Fatalf("Range should return 10 items, got %d", result.Len())
+	}
+
+	result = db.Range([]byte("200"), []byte("300"))
+	if result.Len() != 0 {
+		t.Fatalf("Range should return 0 items, got %d", result.Len())
+	}
+
+	result = db.Range([]byte("000"), []byte("099"))
+	if result.Len() != 100 {
+		t.Fatalf("Range should return 100 items, got %d", result.Len())
+	}
+
+	result = db.Range([]byte("050"), []byte("040"))
+	if result.Len() != 0 {
+		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Len())
+	}
+
+	db.Delete([]byte("001"))
+	result = db.Range([]byte("000"), []byte("002"))
+	if result.Len() != 2 {
+		t.Fatalf("Range should return 2 items after deletion, got %d", result.Len())
+	}
+
+	db.Set([]byte("002"), []byte("bar"))
+	result = db.Range([]byte("002"), []byte("002"))
+	updatedValue, _ := result.Front().Value.([]byte)
+	if result.Len() != 1 || string(updatedValue) != "bar" {
+		t.Fatalf("Range should return 1 item after setting key 002 to 'bar', got %d and value '%s'", result.Len(), string(updatedValue))
+	}
+
+	result = db.Range([]byte("1"), []byte("0"))
+	if result.Len() != 0 {
+		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Len())
 	}
 }
 

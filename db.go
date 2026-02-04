@@ -1,12 +1,15 @@
 package froopydb
 
 import (
+	"bytes"
 	"froopydb/compact"
 	"froopydb/logger"
 	"froopydb/table"
 	"froopydb/wal"
 	"os"
 	"sync"
+
+	"github.com/huandu/skiplist"
 )
 
 var (
@@ -92,6 +95,7 @@ func (db *DB) Close() {
 	db.sstables.CloseAll()
 }
 
+// Set inserts or updates a key-value pair in the database.
 func (db *DB) Set(key []byte, value []byte) []byte {
 	if db.memTable.ShouldFlush(key, value) {
 		// Check if it's just an update (key already exists)
@@ -119,6 +123,7 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 	return []byte{}, false
 }
 
+// Get retrieves the value for a given key.
 func (db *DB) Get(key []byte) string {
 	value, found := db.memTable.Get(key)
 	if found {
@@ -138,10 +143,32 @@ func (db *DB) Get(key []byte) string {
 	return string(value)
 }
 
+// Delete marks a key as deleted by setting its value to a tombstone (0x00).
 func (db *DB) Delete(key []byte) []byte {
 	line := db.Set(key, []byte{0x00})
 	db.sstables.DeleteIndex(key)
 	return line
+}
+
+// Range retrieves all key-value pairs in the specified key range [fromKey, toKey]
+// and returns them as a skiplist.
+func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.SkipList {
+	if bytes.Compare(fromKey, toKey) > 0 {
+		return skiplist.New(skiplist.Bytes)
+	}
+
+	result := skiplist.New(skiplist.Bytes)
+
+	db.sstables.Range(result, fromKey, toKey)
+	if len(db.immMemTables) > 0 {
+		for i := len(db.immMemTables) - 1; i >= 0; i-- {
+			db.immMemTables[i].Range(result, fromKey, toKey)
+		}
+	}
+
+	db.memTable.Range(result, fromKey, toKey)
+
+	return result
 }
 
 // Metrics returns a json format of the database metrics
@@ -165,11 +192,13 @@ func (db *DB) Metrics() DBMetrics {
 	}
 }
 
+// Compact triggers a manual compaction of SSTables.
 func (db *DB) Compact() {
 	compact.MaybeCompactToUpperLevel(db.sstables)
 	compact.MaybeCompactL0(db.sstables)
 }
 
+// WaitFlush waits for all pending memtable flushes goroutines to complete.
 func (db *DB) WaitFlush() {
 	db.wg.Wait()
 }

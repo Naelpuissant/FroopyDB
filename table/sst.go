@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/huandu/skiplist"
 )
 
 var (
@@ -51,7 +53,9 @@ type SSTable struct {
 	file   *os.File
 	writer *SSTWriter
 	reader *SSTReader
-	index  map[string]uint32
+
+	index map[string]uint32
+	keys  []string // Sorted index keys
 }
 
 func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
@@ -63,6 +67,7 @@ func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable
 		incr:   incr,
 		size:   size,
 		index:  map[string]uint32{},
+		keys:   []string{},
 	}
 }
 
@@ -73,6 +78,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	}
 
 	index := map[string]uint32{}
+	keys := []string{}
 	minKey := ""
 	maxKey := ""
 	for item, err := range sstReader.Index() {
@@ -81,6 +87,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		}
 		key := string(item.Key)
 		index[key] = item.Offset
+		keys = append(keys, key)
 		if minKey == "" || key < minKey {
 			minKey = key
 		}
@@ -99,6 +106,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		minKey: minKey,
 		maxKey: maxKey,
 		index:  index,
+		keys:   keys,
 		file:   file,
 		reader: sstReader,
 	}, nil
@@ -118,10 +126,10 @@ func (sst *SSTable) setMinMaxKeys(key []byte) {
 	}
 }
 
-func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
+func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 	offset := uint32(sst.writer.Pos)
 	sst.setMinMaxKeys(key)
-	err := sst.writer.WriteDataBlock(key, value)
+	err := sst.writer.WriteDataBlock(value)
 	if err != nil {
 		return err
 	}
@@ -129,6 +137,7 @@ func (sst *SSTable) WriteDataBlock(key []byte, value []byte) error {
 	// Tombstone check
 	if len(value) != 0 && value[0] != 0x00 {
 		sst.index[string(key)] = offset
+		sst.keys = append(sst.keys, string(key))
 	}
 
 	return nil
@@ -177,6 +186,12 @@ func (sst *SSTable) Rename(new string) {
 
 func (sst *SSTable) DeleteIndex(key []byte) {
 	delete(sst.index, string(key))
+	for i, k := range sst.keys {
+		if k == string(key) {
+			sst.keys = append(sst.keys[:i], sst.keys[i+1:]...)
+			break
+		}
+	}
 }
 
 func (sst *SSTable) Search(key []byte) ([]byte, error) {
@@ -191,6 +206,25 @@ func (sst *SSTable) Search(key []byte) ([]byte, error) {
 	}
 
 	return value, nil
+}
+
+func (sst *SSTable) Range(res *skiplist.SkipList, fromKey, toKey []byte) {
+	if sst.minKey > string(toKey) || sst.maxKey < string(fromKey) {
+		return
+	}
+
+	for _, key := range sst.keys {
+		if key < string(fromKey) {
+			continue
+		}
+		if key > string(toKey) {
+			return
+		}
+		value, err := sst.Search([]byte(key))
+		if err == nil {
+			res.Set([]byte(key), value)
+		}
+	}
 }
 
 func (sst *SSTable) Ready() error {
