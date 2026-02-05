@@ -195,6 +195,11 @@ func (sst *SSTable) DeleteIndex(key []byte) {
 }
 
 func (sst *SSTable) Search(key []byte) ([]byte, error) {
+	// Check bloom filter first
+	// if !sst.bloom.Test(key) {
+	// 	return []byte{}, nil
+	// }
+
 	offset, found := sst.index[string(key)]
 	if !found {
 		return []byte{}, nil
