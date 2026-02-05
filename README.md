@@ -124,7 +124,6 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] clean error handling (too add when bored)
 - [x] refactor method privacy (too add when bored)
 - [x] add debug logger (create a simple one)
-- [ ] Add unit testing (specially on sst reader/writer)
 - [x] Split files for each sstable (data, index, metadata) -> everyting in one file is fine
 - [x] Allow more or less than 4 bytes keys (maybe useless with types)
 - [x] Improve sst.GetMinMax (maybe store min/max KeyOffset in metadata)
@@ -132,22 +131,23 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] DB stats queries (size, len ?, tables, memtableSize...)
 - [x] Use a DBConfig object with a DefaultConfig
 - [x] Improve benchs to have a clear idea on perfs
+- [ ] Add unit testing (specially on sst reader/writer)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
-- [ ] Bench through web api
-- [ ] range queries
+    - [ ] Bench through web api
+    - [ ] Test concurent queries
+- [x] range queries
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Bloom filter
 - [ ] Skiplist custom
 - [ ] Study MMap potential use and benefits
 - [ ] Better corrupted/crashed file recovery
 - [x] Setup CI
-- [ ] Test concurent queries
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] transactions
 - [ ] sst compression
 - [ ] Recode everything in Rust (lol)
-- [ ] Python binding
+    - [ ] Do Python binding
 
 
 ## Usefull links
