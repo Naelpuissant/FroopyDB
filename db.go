@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"froopydb/compact"
 	"froopydb/logger"
+	"froopydb/skiplist"
 	"froopydb/table"
 	"froopydb/wal"
 	"os"
 	"sync"
-
-	"github.com/huandu/skiplist"
 )
 
 var (
@@ -152,12 +151,12 @@ func (db *DB) Delete(key []byte) []byte {
 
 // Range retrieves all key-value pairs in the specified key range [fromKey, toKey]
 // and returns them as a skiplist.
-func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.SkipList {
+func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.Skiplist {
 	if bytes.Compare(fromKey, toKey) > 0 {
-		return skiplist.New(skiplist.Bytes)
+		return skiplist.New()
 	}
 
-	result := skiplist.New(skiplist.Bytes)
+	result := skiplist.New()
 
 	db.sstables.Range(result, fromKey, toKey)
 	if len(db.immMemTables) > 0 {
@@ -177,7 +176,7 @@ func (db *DB) Metrics() DBMetrics {
 	memTableKeys := db.memTable.Len()
 	sstKeys := db.sstables.TotalKeys()
 	numSST := db.sstables.Len()
-	memTableSize := db.memTable.Size
+	memTableSize := db.memTable.Size()
 	diskStorage := db.sstables.TotalSize()
 	pendingFlush := len(db.immMemTables)
 

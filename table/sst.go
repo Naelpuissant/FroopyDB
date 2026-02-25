@@ -2,12 +2,11 @@ package table
 
 import (
 	"fmt"
+	"froopydb/skiplist"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/huandu/skiplist"
 )
 
 var (
@@ -208,7 +207,7 @@ func (sst *SSTable) Search(key []byte) ([]byte, error) {
 	return value, nil
 }
 
-func (sst *SSTable) Range(res *skiplist.SkipList, fromKey, toKey []byte) {
+func (sst *SSTable) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
 	if sst.minKey > string(toKey) || sst.maxKey < string(fromKey) {
 		return
 	}
@@ -222,7 +221,7 @@ func (sst *SSTable) Range(res *skiplist.SkipList, fromKey, toKey []byte) {
 		}
 		value, err := sst.Search([]byte(key))
 		if err == nil {
-			res.Set([]byte(key), value)
+			res.Insert([]byte(key), value)
 		}
 	}
 }

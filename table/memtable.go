@@ -1,31 +1,28 @@
 package table
 
 import (
-	"bytes"
 	"fmt"
 	"froopydb/logger"
 	"froopydb/wal"
 	"froopydb/x"
 	"os"
 
-	"github.com/huandu/skiplist"
+	"froopydb/skiplist"
 )
 
 type MemTable struct {
 	logger *logger.Logger
 
 	maxSize int //Bytes
-	Size    int //Bytes
 
 	wal   *wal.WAL
-	store *skiplist.SkipList
+	store *skiplist.Skiplist
 }
 
 func NewMemTable(logger *logger.Logger, maxSize int, wal *wal.WAL) *MemTable {
-	store := skiplist.New(skiplist.Bytes)
+	store := skiplist.New()
 	fsize := int(wal.GetFileSize())
 
-	memTableSize := 0
 	if fsize > 0 {
 		memTableSize, err := loadMemTableFromFile(store, wal.File())
 		if err != nil {
@@ -37,13 +34,12 @@ func NewMemTable(logger *logger.Logger, maxSize int, wal *wal.WAL) *MemTable {
 
 	return &MemTable{
 		maxSize: maxSize,
-		Size:    memTableSize,
 		wal:     wal,
 		store:   store,
 	}
 }
 
-func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) (int, error) {
+func loadMemTableFromFile(store *skiplist.Skiplist, file *os.File) (int, error) {
 	fstat, _ := file.Stat()
 
 	fsize := fstat.Size()
@@ -69,7 +65,7 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) (int, error) 
 		file.ReadAt(val, offset)
 		offset += int64(vlen)
 
-		store.Set(key, val)
+		store.Insert(key, val)
 		memTableSize += int(klen) + int(vlen)
 	}
 
@@ -84,12 +80,13 @@ func loadMemTableFromFile(store *skiplist.SkipList, file *os.File) (int, error) 
 func (m *MemTable) Flush(sst *SSTable) error {
 	// Handle error properly here
 	sst.InitWriter()
-	for elem := m.store.Front(); elem != nil; elem = elem.Next() {
-		err := sst.WriteDataBlock(elem.Key().([]byte), elem.Value.([]byte))
+	for elem := m.store.First(); elem != nil; elem = elem.Next() {
+		err := sst.WriteDataBlock(elem.Key, elem.Value)
 		if err != nil {
 			return err
 		}
 	}
+
 	indexOffset, err := sst.WriteIndex()
 	if err != nil {
 		return err
@@ -114,61 +111,31 @@ func (m *MemTable) Flush(sst *SSTable) error {
 }
 
 func (m *MemTable) Set(key, value []byte) {
-
-	// Adjust size for overwritten keys
-	// In a perfect world, we would avoid this lookup by keeping
-	// track of size at skiplist level
-	oldValue, found := m.store.GetValue(key)
-
-	m.store.Set(key, value)
+	m.store.Insert(key, value)
 	m.wal.Write(key, value)
-
-	if found {
-		m.Size -= len(key) + len(oldValue.([]byte))
-	}
-	m.Size += len(key) + len(value)
 }
 
 func (m *MemTable) Get(key []byte) ([]byte, bool) {
-	value, found := m.store.GetValue(key)
-	if !found || value == nil || value.([]byte)[0] == 0x00 {
+	node := m.store.Search(key)
+	if node == nil || node.Value[0] == 0x00 {
 		return []byte{}, false
 	}
-	return value.([]byte), found
+	return node.Value, true
 }
 
 // Get range of keys from fromKey to toKey (inclusive)
-func (m *MemTable) Range(res *skiplist.SkipList, fromKey []byte, toKey []byte) {
-	start := m.store.Front()
-	if start == nil {
-		return
-	}
+func (m *MemTable) Range(res *skiplist.Skiplist, fromKey []byte, toKey []byte) {
 
-	end := m.store.Back()
-	if bytes.Compare(end.Key().([]byte), fromKey) < 0 || bytes.Compare(start.Key().([]byte), toKey) > 0 {
-		return
-	}
-
-	for elem := start; elem != nil; elem = elem.Next() {
-		key := elem.Key().([]byte)
-
-		if bytes.Compare(key, fromKey) < 0 {
-			continue
-		}
-
-		if bytes.Compare(key, toKey) > 0 {
-			break
-		}
-
-		value := elem.Value.([]byte)
-		if len(value) != 0 && value[0] != 0x00 {
-			res.Set(key, value)
+	nodes := m.store.Range(fromKey, toKey)
+	for _, node := range nodes {
+		if len(node.Value) != 0 && node.Value[0] != 0x00 {
+			res.Insert(node.Key, node.Value)
 		}
 	}
 }
 
 func (m *MemTable) ShouldFlush(key, value []byte) bool {
-	return m.maxSize <= m.Size+len(key)+len(value)
+	return m.maxSize <= int(m.store.Size())+len(key)+len(value)
 }
 
 func (m *MemTable) MaxSize() int {
@@ -180,5 +147,9 @@ func (m *MemTable) SetLoggerImmutable() {
 }
 
 func (m *MemTable) Len() int {
-	return m.store.Len()
+	return int(m.store.Length())
+}
+
+func (m *MemTable) Size() int {
+	return int(m.store.Size())
 }

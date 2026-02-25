@@ -136,16 +136,17 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
     - [ ] Bench through web api
     - [ ] Test concurent queries
 - [x] range queries
+- [x] Skiplist custom
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
-- [ ] Bloom filter
-- [ ] Skiplist custom
+- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] transactions/mvcc
 - [ ] Study MMap potential use and benefits
 - [ ] Better corrupted/crashed file recovery
 - [x] Setup CI
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
-- [ ] transactions
 - [ ] sst compression
+- [ ] handle big values/keys
 - [ ] Recode everything in Rust (lol)
     - [ ] Do Python binding
 

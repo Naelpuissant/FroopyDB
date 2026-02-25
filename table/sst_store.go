@@ -3,13 +3,12 @@ package table
 import (
 	"fmt"
 	"froopydb/logger"
+	"froopydb/skiplist"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/huandu/skiplist"
 )
 
 type SSTableStore struct {
@@ -140,7 +139,7 @@ func (store *SSTableStore) Search(key []byte) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (store *SSTableStore) Range(res *skiplist.SkipList, fromKey, toKey []byte) {
+func (store *SSTableStore) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
 			level[i].Range(res, fromKey, toKey)
