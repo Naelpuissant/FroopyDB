@@ -31,7 +31,7 @@ Metadata
 
 WAL
 ``` 
-klen uint16 | vlen uint 16 | key bytes | value bytes 
+klen uint16 | vlen uint 16 | key []byte | value []byte 
 ```
 
 ## Compaction Process
@@ -52,7 +52,15 @@ klen uint16 | vlen uint 16 | key bytes | value bytes
 - Write wal log
 - Flush memtable
 - Compaction
-- Keep lock time minimal
+
+## MVCC
+
+MVCC transactions, inside the hood, the key is set with the commit ts.
+- Get : key after txn start should not appear
+- Get : retrieve last/max(ts) key
+- Set : if value has been modified during the transaction -> abort
+- Commit : Set ts and db.Set
+- Rollback : abort txn 
 
 ## Bench
 
@@ -131,21 +139,23 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] DB stats queries (size, len ?, tables, memtableSize...)
 - [x] Use a DBConfig object with a DefaultConfig
 - [x] Improve benchs to have a clear idea on perfs
+- [x] range queries
+- [x] Skiplist custom
+- [ ] transactions/mvcc
+    - [ ] store ts in key (uint64)
+    - [ ] key|ts must be in memtable/sst/wal
+- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] Improve compaction algo (multi level)
+- [ ] Improve compaction perfs (minimal cpu usage)
+- [ ] sst compression
+- [ ] Better corrupted/crashed file recovery
+- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Add unit testing (specially on sst reader/writer)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
     - [ ] Test concurent queries
-- [x] range queries
-- [x] Skiplist custom
-- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
-- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
-- [ ] transactions/mvcc
 - [ ] Study MMap potential use and benefits
-- [ ] Better corrupted/crashed file recovery
 - [x] Setup CI
-- [ ] Improve compaction algo (multi level)
-- [ ] Improve compaction perfs (minimal cpu usage)
-- [ ] sst compression
 - [ ] handle big values/keys
 - [ ] Recode everything in Rust (lol)
     - [ ] Do Python binding
