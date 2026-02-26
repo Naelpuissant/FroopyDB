@@ -43,10 +43,11 @@ func DefaultConfig(folder string) *DBConfig {
 }
 
 type DB struct {
-	logger   *logger.Logger
-	folder   string
-	sstables *table.SSTableStore
+	logger     *logger.Logger
+	folder     string
+	TxnManager *TxnManager
 
+	sstables *table.SSTableStore
 	memTable *table.MemTable
 
 	immMu        sync.Mutex
@@ -76,9 +77,11 @@ func NewDB(config *DBConfig) *DB {
 		panic(err)
 	}
 
+	txnManager := NewTxnManager()
 	db := &DB{
 		logger:       logger,
 		folder:       config.Folder,
+		TxnManager:   txnManager,
 		memTable:     memTable,
 		immMemTables: []*table.MemTable{},
 		sstables:     sstables,
@@ -92,6 +95,10 @@ func NewDB(config *DBConfig) *DB {
 
 func (db *DB) Close() {
 	db.sstables.CloseAll()
+}
+
+func (db *DB) NewTransaction() *Txn {
+	return NewTxn(db)
 }
 
 // Set inserts or updates a key-value pair in the database.
@@ -123,15 +130,15 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 }
 
 // Get retrieves the value for a given key.
-func (db *DB) Get(key []byte) string {
+func (db *DB) Get(key []byte) []byte {
 	value, found := db.memTable.Get(key)
 	if found {
-		return string(value)
+		return value
 	}
 
 	value, found = db.getFromImm(key)
 	if found {
-		return string(value)
+		return value
 	}
 
 	value, err := db.sstables.Search(key)
@@ -139,7 +146,7 @@ func (db *DB) Get(key []byte) string {
 		println(err)
 	}
 
-	return string(value)
+	return value
 }
 
 // Delete marks a key as deleted by setting its value to a tombstone (0x00).

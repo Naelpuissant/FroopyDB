@@ -41,7 +41,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 
 	value := db.Get([]byte(key))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"key": key, "value": value})
+	json.NewEncoder(w).Encode(map[string]string{"key": key, "value": string(value)})
 }
 
 func deleteHandler(w http.ResponseWriter, r *http.Request) {
