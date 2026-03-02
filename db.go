@@ -244,7 +244,3 @@ func (db *DB) removeImmMemTable(mt *table.MemTable) {
 	}
 	db.immMemTables = newImmMemTables
 }
-
-func (db *DB) ImmMemTables() []*table.MemTable {
-	return db.immMemTables
-}
