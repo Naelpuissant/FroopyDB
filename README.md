@@ -144,20 +144,20 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] transactions/mvcc
     - [x] store ts in key (uint64)
     - [x] key|ts must be in memtable/sst/wal
-- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] Better corrupted/crashed file recovery
+- [ ] Add more unit testing (again)
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] sst compression
-- [ ] Better corrupted/crashed file recovery
+- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
-- [ ] Add unit testing (specially on sst reader/writer)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
     - [ ] Test concurent queries
 - [ ] Study MMap potential use and benefits
 - [x] Setup CI
 - [ ] handle big values/keys
-- [ ] Recode everything in Rust (lol)
+- [ ] Recode everything in Rust (or zig lol ?)
     - [ ] Do Python binding
 
 
