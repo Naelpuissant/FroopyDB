@@ -27,3 +27,25 @@ func BytesToUint16(b []byte) uint16 {
 func BytesToUint32(b []byte) uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
+
+func IntKey(i int) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(i))
+	return buf
+}
+
+func EncodeKey(key []byte, ts uint64) []byte {
+	tsBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(tsBytes, ts)
+	return append(key, tsBytes...)
+}
+
+func DecodeKey(encodedKey []byte) ([]byte, uint64) {
+	if len(encodedKey) < 8 {
+		return nil, 0
+	}
+	key := encodedKey[:len(encodedKey)-8]
+	tsBytes := encodedKey[len(encodedKey)-8:]
+	ts := binary.BigEndian.Uint64(tsBytes)
+	return key, ts
+}

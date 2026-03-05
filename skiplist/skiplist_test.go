@@ -2,26 +2,27 @@ package skiplist_test
 
 import (
 	"bytes"
-	"encoding/binary"
-	"froopydb/skiplist"
 	"math/rand"
 	"reflect"
 	"sync"
 	"testing"
+
+	"froopydb/skiplist"
+	"froopydb/x"
 )
 
 func b(i int) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(i))
-	return buf
+	k := x.IntKey(i)
+	ts := 1337
+	return x.EncodeKey(k, uint64(ts))
 }
 
 func TestSkiplist(t *testing.T) {
 	list := skiplist.New()
-	list.Insert(b(5), b(1))
-	list.Insert(b(3), b(2))
-	list.Insert(b(8), b(3))
-	list.Insert(b(1), b(4))
+	_ = list.Insert(b(5), b(1))
+	_ = list.Insert(b(3), b(2))
+	_ = list.Insert(b(8), b(3))
+	_ = list.Insert(b(1), b(4))
 
 	// Insert
 	expectedKeys := [][]byte{b(1), b(3), b(5), b(8)}
@@ -45,7 +46,7 @@ func TestSkiplist(t *testing.T) {
 
 	// Update value
 	expectedLen := list.Length()
-	list.Insert(b(3), b(1337))
+	_ = list.Insert(b(3), b(1337))
 
 	if list.Length() != expectedLen {
 		t.Errorf("Expected length %d, but got %d", expectedLen, list.Length())
@@ -83,7 +84,7 @@ func TestSkiplistInsertConcurrency(t *testing.T) {
 
 	for i := range 1000 {
 		go func(i int) {
-			list.Insert(b(i), b(i))
+			_ = list.Insert(b(i), b(i))
 			wg.Done()
 		}(i)
 	}
@@ -100,9 +101,9 @@ func TestSkiplistInsertConcurrency(t *testing.T) {
 func BenchmarkSkiplistInsert(bm *testing.B) {
 	list := skiplist.New()
 
-	bm.ResetTimer()
-	for i := 0; i < bm.N; i++ {
-		list.Insert(b(i), b(i))
+	for i := 1; bm.Loop(); i++ {
+		_ = list.Insert(b(i), b(i))
+		i++
 	}
 }
 
@@ -113,12 +114,11 @@ func BenchmarkSkiplistSearch(bm *testing.B) {
 	rands := make([]int, size)
 
 	for i := range size {
-		list.Insert(b(i), b(i))
+		_ = list.Insert(b(i), b(i))
 		rands[i] = rand.Intn(size - 1)
 	}
 
-	bm.ResetTimer()
-	for i := 0; i < bm.N; i++ {
+	for i := 1; bm.Loop(); i++ {
 		list.Search(b(rands[i%size]))
 	}
 }

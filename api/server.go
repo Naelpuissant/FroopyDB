@@ -27,7 +27,13 @@ func setHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Set([]byte(req.Key), []byte(req.Value))
+	txn := froopydb.NewTxn(db)
+	txn.Set([]byte(req.Key), []byte(req.Value))
+	if err := txn.Commit(); err != nil {
+		http.Error(w, "failed to commit transaction", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"key": req.Key, "value": req.Value})
 }
@@ -39,7 +45,13 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	value := db.Get([]byte(key))
+	txn := froopydb.NewTxn(db)
+	value := txn.Get([]byte(key))
+	if value == nil {
+		http.Error(w, "key not found", http.StatusNotFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"key": key, "value": string(value)})
 }
@@ -51,7 +63,13 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db.Delete([]byte(key))
+	txn := froopydb.NewTxn(db)
+	txn.Delete([]byte(key))
+	if err := txn.Commit(); err != nil {
+		http.Error(w, "failed to commit transaction", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"key": key})
@@ -66,7 +84,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// sensible defaults; adjust as needed
 	db = froopydb.NewDB(&froopydb.DBConfig{
-		Folder:          "/tmp/froopydbserv",
+		Folder:          "/tmp/froopydb-api",
 		MemTableMaxSize: 0,
 		ClearOnStart:    false,
 		LogLevel:        1,

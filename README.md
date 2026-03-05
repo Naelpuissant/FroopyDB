@@ -141,9 +141,9 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] Improve benchs to have a clear idea on perfs
 - [x] range queries
 - [x] Skiplist custom
-- [ ] transactions/mvcc
-    - [ ] store ts in key (uint64)
-    - [ ] key|ts must be in memtable/sst/wal
+- [x] transactions/mvcc
+    - [x] store ts in key (uint64)
+    - [x] key|ts must be in memtable/sst/wal
 - [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)

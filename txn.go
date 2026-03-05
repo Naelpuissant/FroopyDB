@@ -4,12 +4,14 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"froopydb/x"
 )
 
 var (
-	ErrTxnConflict  = errors.New("Transaction conflict detected")
-	ErrTxnCommitted = errors.New("Transaction already committed")
-	ErrTxnAborted   = errors.New("Transaction already aborted")
+	ErrTxnConflict  = errors.New("transaction conflict detected")
+	ErrTxnCommitted = errors.New("transaction already committed")
+	ErrTxnAborted   = errors.New("transaction already aborted")
 )
 
 type TxnState int
@@ -52,17 +54,44 @@ func NewTxn(db *DB) *Txn {
 	}
 }
 
+func (t *Txn) checkActive() error {
+	if t.state == Committed {
+		return ErrTxnCommitted
+	}
+	if t.state == Aborted {
+		return ErrTxnAborted
+	}
+	return nil
+}
+
+func (t *Txn) Delete(key []byte) {
+	if err := t.checkActive(); err != nil {
+		panic(err)
+	}
+	t.writes[string(key)] = []byte{0x00} // Tombstone value
+}
+
 func (t *Txn) Set(key []byte, value []byte) {
+	if err := t.checkActive(); err != nil {
+		panic(err)
+	}
 	t.writes[string(key)] = value
 }
 
 func (t *Txn) Get(key []byte) []byte {
+	if err := t.checkActive(); err != nil {
+		panic(err)
+	}
 	if value, ok := t.writes[string(key)]; ok {
+		if len(value) == 1 && value[0] == 0x00 {
+			return nil
+		}
 		return value
 	}
-	return t.db.Get(key)
+	return t.db.Get(x.EncodeKey(key, t.ts))
 }
 
+// Commit the transaction
 // 1 - Set commit ts
 // 2 - Check for conflicts
 // 3 - Call db add and add keys to current commited txn
@@ -70,11 +99,8 @@ func (t *Txn) Commit() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if t.state == Committed {
-		return ErrTxnCommitted
-	}
-	if t.state == Aborted {
-		return ErrTxnAborted
+	if err := t.checkActive(); err != nil {
+		return err
 	}
 
 	// Check for conflicts
@@ -90,16 +116,17 @@ func (t *Txn) Commit() error {
 	}
 
 	// Later build build a key using commit ts
-	commitTs := uint64(time.Now().UnixNano())
+	commitTS := uint64(time.Now().UnixNano())
 
 	commited := &CommitedTxn{
-		ts:   commitTs,
+		ts:   commitTS,
 		keys: map[string]struct{}{},
 	}
 	t.db.TxnManager.commitedTxns = append(t.db.TxnManager.commitedTxns, commited)
 
 	for key, value := range t.writes {
-		t.db.Set([]byte(key), value)
+		encodedKey := x.EncodeKey([]byte(key), commitTS)
+		t.db.Set(encodedKey, value)
 		commited.keys[key] = struct{}{}
 	}
 

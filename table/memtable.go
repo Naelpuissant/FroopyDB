@@ -2,10 +2,11 @@ package table
 
 import (
 	"fmt"
+	"os"
+
 	"froopydb/logger"
 	"froopydb/wal"
 	"froopydb/x"
-	"os"
 
 	"froopydb/skiplist"
 )
@@ -13,7 +14,7 @@ import (
 type MemTable struct {
 	logger *logger.Logger
 
-	maxSize int //Bytes
+	maxSize int // Bytes
 
 	wal   *wal.WAL
 	store *skiplist.Skiplist
@@ -123,9 +124,8 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 	return node.Value, true
 }
 
-// Get range of keys from fromKey to toKey (inclusive)
+// Range get range of keys from fromKey to toKey (inclusive)
 func (m *MemTable) Range(res *skiplist.Skiplist, fromKey []byte, toKey []byte) {
-
 	nodes := m.store.Range(fromKey, toKey)
 	for _, node := range nodes {
 		if len(node.Value) != 0 && node.Value[0] != 0x00 {

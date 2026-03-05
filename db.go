@@ -1,14 +1,16 @@
+// Package froopydb main db file
 package froopydb
 
 import (
 	"bytes"
+	"os"
+	"sync"
+
 	"froopydb/compact"
 	"froopydb/logger"
 	"froopydb/skiplist"
 	"froopydb/table"
 	"froopydb/wal"
-	"os"
-	"sync"
 )
 
 var (
@@ -58,12 +60,18 @@ type DB struct {
 
 func NewDB(config *DBConfig) *DB {
 	if config.ClearOnStart {
-		os.RemoveAll(config.Folder)
+		err := os.RemoveAll(config.Folder)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	logger := logger.NewLogger(config.LogLevel)
 
-	os.MkdirAll(config.Folder, 0777)
+	err := os.MkdirAll(config.Folder, 0o777)
+	if err != nil {
+		panic(err)
+	}
 
 	memTable := table.NewMemTable(
 		logger,
@@ -177,13 +185,23 @@ func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.Skiplist {
 	return result
 }
 
+// MemTableSize returns the current size of the MemTable in bytes
+func (db *DB) MemTableSize() int {
+	return db.memTable.Size()
+}
+
+// NumSSTables returns the number of SSTables currently in the database
+func (db *DB) NumSSTables() int {
+	return db.sstables.Len()
+}
+
 // Metrics returns a json format of the database metrics
 // metrics include total keys, number of SSTables, MemTable size, SSTables size
 func (db *DB) Metrics() DBMetrics {
 	memTableKeys := db.memTable.Len()
 	sstKeys := db.sstables.TotalKeys()
-	numSST := db.sstables.Len()
-	memTableSize := db.memTable.Size()
+	numSST := db.NumSSTables()
+	memTableSize := db.MemTableSize()
 	diskStorage := db.sstables.TotalSize()
 	pendingFlush := len(db.immMemTables)
 

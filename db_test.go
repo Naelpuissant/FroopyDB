@@ -2,16 +2,17 @@ package froopydb_test
 
 import (
 	"fmt"
-	fpdb "froopydb"
-	"froopydb/logger"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+
+	fpdb "froopydb"
+	"froopydb/logger"
+	"froopydb/x"
 )
 
-var (
-	memTableMaxSize = fpdb.KB
-)
+var memTableMaxSize = fpdb.KB
 
 func TestGetSet(t *testing.T) {
 	dir := t.TempDir()
@@ -23,9 +24,9 @@ func TestGetSet(t *testing.T) {
 	})
 	defer db.Close()
 
-	db.Set([]byte("1"), []byte("foo"))
-	db.Set([]byte("1"), []byte("bar"))
-	result := db.Get([]byte("1"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("bar"))
+	result := db.Get(x.EncodeKey([]byte("1"), 0))
 	if string(result) != "bar" {
 		t.Fatalf("Updated key 1 must be 'bar'")
 	}
@@ -49,15 +50,13 @@ func TestGetMultipleSegments(t *testing.T) {
 	})
 	defer db.Close()
 
-	db.Set([]byte("1"), []byte("foo"))
-	db.Set([]byte("1"), []byte("bar"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("bar"))
 
 	// Trigger a flush
-	for i := 2; i < memTableMaxSize/2; i++ {
-		db.Set([]byte(strconv.Itoa(i)), []byte{'x'})
-	}
+	db.Set(x.EncodeKey([]byte(strconv.Itoa(2)), 0), []byte(strings.Repeat("a", memTableMaxSize)))
 
-	result := db.Get([]byte("1"))
+	result := db.Get(x.EncodeKey([]byte("1"), 0))
 	if string(result) != "bar" {
 		t.Fatalf("Updated key 1 must be 'bar': %s", result)
 	}
@@ -80,10 +79,10 @@ func TestDelete(t *testing.T) {
 	})
 	defer db.Close()
 
-	db.Set([]byte("1"), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
 
-	db.Delete([]byte("1"))
-	result := db.Get([]byte("1"))
+	db.Delete(x.EncodeKey([]byte("1"), 0))
+	result := db.Get(x.EncodeKey([]byte("1"), 0))
 	if string(result) != "" {
 		t.Fatalf("Key 1 must be deleted: %s", result)
 	}
@@ -101,50 +100,50 @@ func TestRange(t *testing.T) {
 
 	for i := range 100 {
 		key := fmt.Sprintf("%03d", i)
-		db.Set([]byte(key), []byte("foo"))
+		db.Set(x.EncodeKey([]byte(key), 0), []byte("foo"))
 	}
 
 	db.WaitFlush()
 
-	result := db.Range([]byte("010"), []byte("020"))
+	result := db.Range(x.EncodeKey([]byte("010"), 0), x.EncodeKey([]byte("020"), 0))
 	if result.Length() != 11 {
 		t.Fatalf("Range should return 11 items, got %d", result.Length())
 	}
 
-	result = db.Range([]byte("090"), []byte("099"))
+	result = db.Range(x.EncodeKey([]byte("090"), 0), x.EncodeKey([]byte("099"), 0))
 	if result.Length() != 10 {
 		t.Fatalf("Range should return 10 items, got %d", result.Length())
 	}
 
-	result = db.Range([]byte("200"), []byte("300"))
+	result = db.Range(x.EncodeKey([]byte("200"), 0), x.EncodeKey([]byte("300"), 0))
 	if result.Length() != 0 {
 		t.Fatalf("Range should return 0 items, got %d", result.Length())
 	}
 
-	result = db.Range([]byte("000"), []byte("099"))
+	result = db.Range(x.EncodeKey([]byte("000"), 0), x.EncodeKey([]byte("099"), 0))
 	if result.Length() != 100 {
 		t.Fatalf("Range should return 100 items, got %d", result.Length())
 	}
 
-	result = db.Range([]byte("050"), []byte("040"))
+	result = db.Range(x.EncodeKey([]byte("050"), 0), x.EncodeKey([]byte("040"), 0))
 	if result.Length() != 0 {
 		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Length())
 	}
 
-	db.Delete([]byte("001"))
-	result = db.Range([]byte("000"), []byte("002"))
+	db.Delete(x.EncodeKey([]byte("001"), 0))
+	result = db.Range(x.EncodeKey([]byte("000"), 0), x.EncodeKey([]byte("002"), 0))
 	if result.Length() != 2 {
 		t.Fatalf("Range should return 2 items after deletion, got %d", result.Length())
 	}
 
-	db.Set([]byte("002"), []byte("bar"))
-	result = db.Range([]byte("002"), []byte("002"))
+	db.Set(x.EncodeKey([]byte("002"), 0), []byte("bar"))
+	result = db.Range(x.EncodeKey([]byte("002"), 0), x.EncodeKey([]byte("002"), 0))
 	updatedValue, _ := result.First().Value, result.First() != nil
 	if result.Length() != 1 || string(updatedValue) != "bar" {
 		t.Fatalf("Range should return 1 item after setting key 002 to 'bar', got %d and value '%s'", result.Length(), string(updatedValue))
 	}
 
-	result = db.Range([]byte("1"), []byte("0"))
+	result = db.Range(x.EncodeKey([]byte("1"), 0), x.EncodeKey([]byte("0"), 0))
 	if result.Length() != 0 {
 		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Length())
 	}
@@ -161,24 +160,24 @@ func TestCompactAndMerge(t *testing.T) {
 	defer db.Close()
 
 	for i := range 100 {
-		db.Set([]byte{byte(i)}, []byte("pad"))
+		db.Set(x.EncodeKey([]byte{byte(i)}, 0), []byte("pad"))
 	}
 
-	db.Set([]byte("1"), []byte("foo"))
-	db.Set([]byte("2"), []byte("baz"))
-	db.Set([]byte("3"), []byte("boo"))
-	db.Delete([]byte("2"))
-	db.Delete([]byte("3"))
-	db.Set([]byte("2"), []byte("hey!"))
+	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("2"), 0), []byte("baz"))
+	db.Set(x.EncodeKey([]byte("3"), 0), []byte("boo"))
+	db.Delete(x.EncodeKey([]byte("2"), 0))
+	db.Delete(x.EncodeKey([]byte("3"), 0))
+	db.Set(x.EncodeKey([]byte("2"), 0), []byte("hey!"))
 
 	db.Compact()
 
-	result := db.Get([]byte("1"))
+	result := db.Get(x.EncodeKey([]byte("1"), 0))
 	if string(result) != "foo" {
 		t.Fatalf("Key 1 must foo: %s", result)
 	}
 
-	result = db.Get([]byte("3"))
+	result = db.Get(x.EncodeKey([]byte("3"), 0))
 	if string(result) != "" {
 		t.Fatalf("Key 3 must be deleted: %s", result)
 	}
@@ -190,7 +189,7 @@ func BenchmarkSet(b *testing.B) {
 	defer db.Close()
 
 	for b.Loop() {
-		db.Set([]byte(strconv.Itoa(b.N)), []byte("load"))
+		db.Set(x.EncodeKey([]byte(strconv.Itoa(b.N)), 0), []byte("load"))
 	}
 }
 
@@ -201,10 +200,10 @@ func BenchmarkGet(b *testing.B) {
 
 	// Populate the database
 	for i := 0; i < b.N; i++ {
-		db.Set([]byte(strconv.Itoa(i)), []byte("load"))
+		db.Set(x.EncodeKey([]byte(strconv.Itoa(i)), 0), []byte("load"))
 	}
 
 	for b.Loop() {
-		db.Get([]byte(strconv.Itoa(b.N)))
+		db.Get(x.EncodeKey([]byte(strconv.Itoa(b.N)), 0))
 	}
 }

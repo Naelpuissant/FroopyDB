@@ -12,7 +12,7 @@ var (
 	maxHeight = 32
 	pValue    = 0.5
 
-	ErrNilKey = errors.New("Nil key not allowed")
+	ErrNilKey = errors.New("nil key not allowed")
 )
 
 type Node struct {
@@ -119,6 +119,16 @@ func (l *Skiplist) Insert(key, value []byte) error {
 	return nil
 }
 
+// CompareKeys compares keys without ts (int64) if not equal
+// and compares ts if keys are equal
+func (l *Skiplist) compareKeys(key1, key2 []byte) int {
+	cmp := bytes.Compare(key1[:len(key1)-8], key2[:len(key2)-8])
+	if cmp != 0 {
+		return cmp
+	}
+	return bytes.Compare(key2[len(key1)-8:], key1[len(key2)-8:])
+}
+
 // Search returns the node with the given key, or nil if not found (O(log(n)))
 func (l *Skiplist) Search(key []byte) *Node {
 	l.mu.RLock()
@@ -126,13 +136,13 @@ func (l *Skiplist) Search(key []byte) *Node {
 
 	curr := l.head
 	for i := l.level; i >= 0; i-- {
-		for curr.levels[i] != nil && bytes.Compare(curr.levels[i].Key, key) < 0 {
+		for curr.levels[i] != nil && l.compareKeys(curr.levels[i].Key, key) < 0 {
 			curr = curr.levels[i]
 		}
 	}
 	curr = curr.Next()
 
-	if curr != nil && bytes.Equal(curr.Key, key) {
+	if curr != nil && bytes.Equal(curr.Key[:len(curr.Key)-8], key[:len(key)-8]) {
 		return curr
 	}
 
