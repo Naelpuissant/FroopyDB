@@ -144,12 +144,19 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] transactions/mvcc
     - [x] store ts in key (uint64)
     - [x] key|ts must be in memtable/sst/wal
+- [ ] Global cleanup 
+    - [ ] clean db api -> we should only call txn
+    - [ ] have a clear api for search/get (return (bytes and found))
+    - [ ] check concurrency safety
+- [ ] Fix bench and update benchs
+- [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
 - [ ] Add more unit testing (again)
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] sst compression
 - [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] Allow transactionless operations (no conflict checking)
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
@@ -166,3 +173,5 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - https://www.nan.fyi/database
 - https://github.com/dgraph-io/badger/tree/main
 - https://github.com/rosedblabs/wal/tree/main
+- https://info.varnish-software.com/blog/how-memory-maps-mmap-deliver-25x-faster-file-access-in-go?utm_source=tldrwebdev
+- https://www.bitflux.ai/blog/memory-is-slow-part2/?utm_source=tldrwebdev
