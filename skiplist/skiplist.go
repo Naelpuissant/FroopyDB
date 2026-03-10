@@ -126,7 +126,7 @@ func (l *Skiplist) compareKeys(key1, key2 []byte) int {
 	if cmp != 0 {
 		return cmp
 	}
-	return bytes.Compare(key2[len(key1)-8:], key1[len(key2)-8:])
+	return bytes.Compare(key1[len(key1)-8:], key2[len(key2)-8:])
 }
 
 // Search returns the node with the given key, or nil if not found (O(log(n)))
@@ -136,13 +136,12 @@ func (l *Skiplist) Search(key []byte) *Node {
 
 	curr := l.head
 	for i := l.level; i >= 0; i-- {
-		for curr.levels[i] != nil && l.compareKeys(curr.levels[i].Key, key) < 0 {
+		for curr.levels[i] != nil && l.compareKeys(curr.levels[i].Key, key) <= 0 {
 			curr = curr.levels[i]
 		}
 	}
-	curr = curr.Next()
 
-	if curr != nil && bytes.Equal(curr.Key[:len(curr.Key)-8], key[:len(key)-8]) {
+	if curr != nil && len(curr.Key) != 0 && bytes.Equal(curr.Key[:len(curr.Key)-8], key[:len(key)-8]) {
 		return curr
 	}
 

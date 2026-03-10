@@ -27,7 +27,7 @@ func setHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := froopydb.NewTxn(db)
+	txn := db.NewTransaction()
 	txn.Set([]byte(req.Key), []byte(req.Value))
 	if err := txn.Commit(); err != nil {
 		http.Error(w, "failed to commit transaction", http.StatusInternalServerError)
@@ -45,7 +45,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := froopydb.NewTxn(db)
+	txn := db.NewTransaction()
 	value := txn.Get([]byte(key))
 	if value == nil {
 		http.Error(w, "key not found", http.StatusNotFound)
@@ -63,7 +63,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	txn := froopydb.NewTxn(db)
+	txn := db.NewTransaction()
 	txn.Delete([]byte(key))
 	if err := txn.Commit(); err != nil {
 		http.Error(w, "failed to commit transaction", http.StatusInternalServerError)

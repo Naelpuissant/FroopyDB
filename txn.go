@@ -84,7 +84,7 @@ func (t *Txn) Get(key []byte) []byte {
 	}
 	if value, ok := t.writes[string(key)]; ok {
 		if len(value) == 1 && value[0] == 0x00 {
-			return nil
+			return []byte{}
 		}
 		return value
 	}
