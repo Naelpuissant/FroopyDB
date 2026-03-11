@@ -35,6 +35,11 @@ func (n *Node) Next() *Node {
 	return n.levels[0]
 }
 
+// IsDeleted performs a tombstone check (value is 0x00)
+func (n *Node) IsDeleted() bool {
+	return len(n.Value) == 1 && n.Value[0] == 0x00
+}
+
 type Skiplist struct {
 	head   *Node
 	last   *Node
@@ -129,8 +134,8 @@ func (l *Skiplist) compareKeys(key1, key2 []byte) int {
 	return bytes.Compare(key1[len(key1)-8:], key2[len(key2)-8:])
 }
 
-// Search returns the node with the given key, or nil if not found (O(log(n)))
-func (l *Skiplist) Search(key []byte) *Node {
+// Search returns the node and found for a given key, or nil/false if not found (O(log(n)))
+func (l *Skiplist) Search(key []byte) (*Node, bool) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
@@ -142,10 +147,10 @@ func (l *Skiplist) Search(key []byte) *Node {
 	}
 
 	if curr != nil && len(curr.Key) != 0 && bytes.Equal(curr.Key[:len(curr.Key)-8], key[:len(key)-8]) {
-		return curr
+		return curr, true
 	}
 
-	return nil
+	return nil, false
 }
 
 func (l *Skiplist) Range(from []byte, to []byte) []*Node {

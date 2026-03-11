@@ -137,24 +137,24 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 	return []byte{}, false
 }
 
-// Get retrieves the value for a given key.
-func (db *DB) Get(key []byte) []byte {
+// Get retrieves the value/found for a given key.
+func (db *DB) Get(key []byte) ([]byte, bool) {
 	value, found := db.memTable.Get(key)
 	if found {
-		return value
+		return value, true
 	}
 
 	value, found = db.getFromImm(key)
 	if found {
-		return value
+		return value, true
 	}
 
 	value, err := db.sstables.Search(key)
 	if err != nil {
-		println(err)
+		db.logger.Error("Failed to search SSTable", "error", err)
 	}
 
-	return value
+	return value, false
 }
 
 // Delete marks a key as deleted by setting its value to a tombstone (0x00).

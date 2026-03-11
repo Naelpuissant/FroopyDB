@@ -26,9 +26,9 @@ func TestGetSet(t *testing.T) {
 
 	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
 	db.Set(x.EncodeKey([]byte("1"), 0), []byte("bar"))
-	result := db.Get(x.EncodeKey([]byte("1"), 0))
-	if string(result) != "bar" {
-		t.Fatalf("Updated key 1 must be 'bar'")
+	result, found := db.Get(x.EncodeKey([]byte("1"), 0))
+	if !found || string(result) != "bar" {
+		t.Fatalf("Updated key 1 must be 'bar', found=%v", found)
 	}
 
 	metrics := db.Metrics()
@@ -56,9 +56,9 @@ func TestGetMultipleSegments(t *testing.T) {
 	// Trigger a flush
 	db.Set(x.EncodeKey([]byte(strconv.Itoa(2)), 0), []byte(strings.Repeat("a", memTableMaxSize)))
 
-	result := db.Get(x.EncodeKey([]byte("1"), 0))
-	if string(result) != "bar" {
-		t.Fatalf("Updated key 1 must be 'bar': %s", result)
+	result, found := db.Get(x.EncodeKey([]byte("1"), 0))
+	if !found || string(result) != "bar" {
+		t.Fatalf("Updated key 1 must be 'bar': %s, found=%v", result, found)
 	}
 
 	db.WaitFlush()
@@ -82,9 +82,9 @@ func TestDelete(t *testing.T) {
 	db.Set(x.EncodeKey([]byte("1"), 0), []byte("foo"))
 
 	db.Delete(x.EncodeKey([]byte("1"), 0))
-	result := db.Get(x.EncodeKey([]byte("1"), 0))
-	if string(result) != "" {
-		t.Fatalf("Key 1 must be deleted: %s", result)
+	result, found := db.Get(x.EncodeKey([]byte("1"), 0))
+	if found || string(result) != "" {
+		t.Fatalf("Key 1 must be deleted: %s, found=%v", result, found)
 	}
 }
 
@@ -172,14 +172,14 @@ func TestCompactAndMerge(t *testing.T) {
 
 	db.Compact()
 
-	result := db.Get(x.EncodeKey([]byte("1"), 0))
-	if string(result) != "foo" {
-		t.Fatalf("Key 1 must foo: %s", result)
+	result, found := db.Get(x.EncodeKey([]byte("1"), 0))
+	if !found || string(result) != "foo" {
+		t.Fatalf("Key 1 must foo: %s, found=%v", result, found)
 	}
 
-	result = db.Get(x.EncodeKey([]byte("3"), 0))
-	if string(result) != "" {
-		t.Fatalf("Key 3 must be deleted: %s", result)
+	result, found = db.Get(x.EncodeKey([]byte("3"), 0))
+	if found || string(result) != "" {
+		t.Fatalf("Key 3 must be deleted: %s, found=%v", result, found)
 	}
 }
 

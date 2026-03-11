@@ -21,12 +21,13 @@ func TestTxn(t *testing.T) {
 	}
 
 	txn2 := db.NewTransaction()
-	value := txn2.Get(x.IntKey(1))
-	if string(value) != "hello" {
-		t.Fatalf("Expected 1 to be hello, got %s", string(value))
+	value, found := txn2.Get(x.IntKey(1))
+	if !found || string(value) != "hello" {
+		t.Fatalf("Expected 1 to be hello, got %s (found=%v)", string(value), found)
 	}
-	if string(txn2.Get(x.IntKey(2))) != "world" {
-		t.Fatalf("Expected 2 to be world, got %s", string(value))
+	value, found = txn2.Get(x.IntKey(2))
+	if !found || string(value) != "world" {
+		t.Fatalf("Expected 2 to be world, got %s (found=%v)", string(value), found)
 	}
 	if err := txn2.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
@@ -34,16 +35,18 @@ func TestTxn(t *testing.T) {
 
 	txn3 := db.NewTransaction()
 	txn3.Delete(x.IntKey(1))
-	if value := txn3.Get(x.IntKey(1)); len(value) != 0 {
-		t.Fatalf("Expected key to be deleted, got %s", string(value))
+	value, found = txn3.Get(x.IntKey(1))
+	if found || len(value) != 0 {
+		t.Fatalf("Expected key to be deleted, got %s (found=%v)", string(value), found)
 	}
 	if err := txn3.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
 	txn4 := db.NewTransaction()
-	if value := txn4.Get(x.IntKey(1)); len(value) != 0 {
-		t.Fatalf("Expected key to be deleted, got %s", string(value))
+	value, found = txn4.Get(x.IntKey(1))
+	if found || len(value) != 0 {
+		t.Fatalf("Expected key to be deleted, got %s (found=%v)", string(value), found)
 	}
 	if err := txn4.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
@@ -89,8 +92,8 @@ func TestTxnGetConflict(t *testing.T) {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
-	if value := txn2.Get(x.IntKey(1)); len(value) != 0 {
-		t.Fatalf("Expected value to be empty, got %s", string(value))
+	if value, found := txn2.Get(x.IntKey(1)); found || len(value) != 0 {
+		t.Fatalf("Expected value to be empty, got %s (found=%v)", string(value), found)
 	}
 
 	if err := txn2.Commit(); err != nil {

@@ -46,8 +46,8 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	txn := db.NewTransaction()
-	value := txn.Get([]byte(key))
-	if value == nil {
+	value, found := txn.Get([]byte(key))
+	if !found {
 		http.Error(w, "key not found", http.StatusNotFound)
 		return
 	}

@@ -64,6 +64,7 @@ func (t *Txn) checkActive() error {
 	return nil
 }
 
+// Delete marks a key as deleted by setting its value to a tombstone
 func (t *Txn) Delete(key []byte) {
 	if err := t.checkActive(); err != nil {
 		panic(err)
@@ -71,6 +72,7 @@ func (t *Txn) Delete(key []byte) {
 	t.writes[string(key)] = []byte{0x00} // Tombstone value
 }
 
+// Set inserts or updates a key-value pair in the transaction's write map
 func (t *Txn) Set(key []byte, value []byte) {
 	if err := t.checkActive(); err != nil {
 		panic(err)
@@ -78,15 +80,16 @@ func (t *Txn) Set(key []byte, value []byte) {
 	t.writes[string(key)] = value
 }
 
-func (t *Txn) Get(key []byte) []byte {
+// Get retrieves the value/found for a given key within the transaction context
+func (t *Txn) Get(key []byte) ([]byte, bool) {
 	if err := t.checkActive(); err != nil {
 		panic(err)
 	}
 	if value, ok := t.writes[string(key)]; ok {
 		if len(value) == 1 && value[0] == 0x00 {
-			return []byte{}
+			return []byte{}, false
 		}
-		return value
+		return value, ok
 	}
 	return t.db.Get(x.EncodeKey(key, t.ts))
 }

@@ -33,15 +33,15 @@ func TestSkiplist(t *testing.T) {
 	}
 
 	// Search existing key
-	node := list.Search(b(3))
-	if node == nil || !bytes.Equal(node.Value, b(2)) {
-		t.Errorf("Expected to find key 3 with value 2, but got %v", node)
+	node, found := list.Search(b(3))
+	if !found || node == nil || !bytes.Equal(node.Value, b(2)) {
+		t.Errorf("Expected to find key 3 with value 2, but got %v (found=%v)", node, found)
 	}
 
 	// Search non-existing key
-	node = list.Search(b(10))
-	if node != nil {
-		t.Errorf("Expected to not find key 10, but got %v", node)
+	_, found = list.Search(b(10))
+	if found {
+		t.Errorf("Expected to not find key 10, but it was reported found")
 	}
 
 	// Update value
@@ -52,9 +52,9 @@ func TestSkiplist(t *testing.T) {
 		t.Errorf("Expected length %d, but got %d", expectedLen, list.Length())
 	}
 
-	node = list.Search(b(3))
-	if node == nil || !bytes.Equal(node.Value, b(1337)) {
-		t.Errorf("Expected updated value 1337, got %v", node)
+	node, found = list.Search(b(3))
+	if !found || node == nil || !bytes.Equal(node.Value, b(1337)) {
+		t.Errorf("Expected updated value 1337, got %v (found=%v)", node, found)
 	}
 
 	first := list.First().Key
@@ -91,9 +91,9 @@ func TestSkiplistInsertConcurrency(t *testing.T) {
 	wg.Wait()
 
 	for i := range 1000 {
-		node := list.Search(b(i))
-		if node == nil || !bytes.Equal(node.Value, b(i)) {
-			t.Errorf("Expected to find key %d", i)
+		node, found := list.Search(b(i))
+		if !found || node == nil || !bytes.Equal(node.Value, b(i)) {
+			t.Errorf("Expected to find key %d, got node=%v found=%v", i, node, found)
 		}
 	}
 }

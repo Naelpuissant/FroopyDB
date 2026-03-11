@@ -117,8 +117,8 @@ func (m *MemTable) Set(key, value []byte) {
 }
 
 func (m *MemTable) Get(key []byte) ([]byte, bool) {
-	node := m.store.Search(key)
-	if node == nil || node.Value[0] == 0x00 {
+	node, found := m.store.Search(key)
+	if !found || node.IsDeleted() {
 		return []byte{}, false
 	}
 	return node.Value, true
@@ -128,7 +128,7 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 func (m *MemTable) Range(res *skiplist.Skiplist, fromKey []byte, toKey []byte) {
 	nodes := m.store.Range(fromKey, toKey)
 	for _, node := range nodes {
-		if len(node.Value) != 0 && node.Value[0] != 0x00 {
+		if !node.IsDeleted() {
 			res.Insert(node.Key, node.Value)
 		}
 	}
