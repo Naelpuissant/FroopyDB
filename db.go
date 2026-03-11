@@ -109,7 +109,10 @@ func (db *DB) NewTransaction() *Txn {
 	return NewTxn(db)
 }
 
-// Set inserts or updates a key-value pair in the database.
+// Set inserts or updates a key-value pair in the database
+// and returns the value that was set.
+// If the memtable exceeds its max size after the set,
+// it will be flushed to disk in the background.
 func (db *DB) Set(key []byte, value []byte) []byte {
 	if db.memTable.ShouldFlush(key, value) {
 		// Check if it's just an update (key already exists)
@@ -137,7 +140,7 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 	return []byte{}, false
 }
 
-// Get retrieves the value/found for a given key.
+// Get retrieves the value/found for a given key
 func (db *DB) Get(key []byte) ([]byte, bool) {
 	value, found := db.memTable.Get(key)
 	if found {
@@ -157,15 +160,14 @@ func (db *DB) Get(key []byte) ([]byte, bool) {
 	return value, false
 }
 
-// Delete marks a key as deleted by setting its value to a tombstone (0x00).
-func (db *DB) Delete(key []byte) []byte {
-	line := db.Set(key, []byte{0x00})
+// Delete marks a key as deleted by setting its value to a tombstone (0x00)
+func (db *DB) Delete(key []byte) {
+	_ = db.Set(key, []byte{0x00})
 	db.sstables.DeleteIndex(key)
-	return line
 }
 
 // Range retrieves all key-value pairs in the specified key range [fromKey, toKey]
-// and returns them as a skiplist.
+// and returns them as a skiplist
 func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.Skiplist {
 	if bytes.Compare(fromKey, toKey) > 0 {
 		return skiplist.New()

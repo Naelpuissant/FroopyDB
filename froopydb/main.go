@@ -23,8 +23,8 @@ func main() {
 	}
 
 	println("====DELETE====")
-	print(db.Delete([]byte{12}))
+	db.Delete([]byte{12})
 
-	println("====GET====")
-	print(db.Get([]byte{12}))
+	println("====GET====" )
+	println(db.Get([]byte{12}))
 }

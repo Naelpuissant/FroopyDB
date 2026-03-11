@@ -144,13 +144,14 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] transactions/mvcc
     - [x] store ts in key (uint64)
     - [x] key|ts must be in memtable/sst/wal
-- [ ] Global cleanup 
-    - [ ] clean db api -> we should only call txn
-    - [ ] have a clear api for search/get (return (bytes and found))
+- [x] Global cleanup 
+    - [x] clean db api -> we should only call txn
+    - [x] have a clear api for search/get (return (bytes and found))
     - [ ] check concurrency safety
 - [ ] Fix bench and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
+- [ ] Add Range query to txn
 - [ ] Add more unit testing (again)
 - [ ] Improve compaction algo (multi level)
 - [ ] Improve compaction perfs (minimal cpu usage)
