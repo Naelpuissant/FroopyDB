@@ -49,9 +49,11 @@ klen uint16 | vlen uint 16 | key []byte | value []byte
 
 ## Concurency
 
-- Write wal log
-- Flush memtable
-- Compaction
+- Write wal log in a channel
+- Flush memtable in a channel
+- Skiplist mutexed
+- immutable memtables atomic pointer + copy on write (CoW)
+- SSTables store atomic pointer + copy on write (CoW)
 
 ## MVCC
 
@@ -147,7 +149,9 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] Global cleanup 
     - [x] clean db api -> we should only call txn
     - [x] have a clear api for search/get (return (bytes and found))
-    - [ ] check concurrency safety
+- [ ] check concurrency safety
+    - [x] Copy on Write for immutable memtables
+    - [ ] Copy on Write for sst store
 - [ ] Fix bench and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
@@ -157,6 +161,7 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] sst compression
 - [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] Improve WAL (batch write...)
 - [ ] Allow transactionless operations (no conflict checking)
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
