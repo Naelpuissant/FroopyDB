@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"froopydb/compact"
 	"froopydb/logger"
@@ -52,10 +53,11 @@ type DB struct {
 	sstables *table.SSTableStore
 	memTable *table.MemTable
 
-	immMu        sync.Mutex
-	immMemTables []*table.MemTable
-	flushJobs    chan *table.MemTable
-	wg           sync.WaitGroup
+	immMemTables atomic.Pointer[[]*table.MemTable]
+
+	flushJobs chan *table.MemTable
+	wg        sync.WaitGroup
+	mu        sync.RWMutex
 }
 
 func NewDB(config *DBConfig) *DB {
@@ -91,10 +93,11 @@ func NewDB(config *DBConfig) *DB {
 		folder:       config.Folder,
 		TxnManager:   txnManager,
 		memTable:     memTable,
-		immMemTables: []*table.MemTable{},
+		immMemTables: atomic.Pointer[[]*table.MemTable]{},
 		sstables:     sstables,
 		flushJobs:    make(chan *table.MemTable),
 	}
+	db.immMemTables.Store(&[]*table.MemTable{})
 
 	go db.flushWorker()
 
@@ -129,9 +132,10 @@ func (db *DB) Set(key []byte, value []byte) []byte {
 }
 
 func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
-	if len(db.immMemTables) > 0 {
-		for i := len(db.immMemTables) - 1; i >= 0; i-- {
-			value, found := db.immMemTables[i].Get(keyBytes)
+	immMemTables := db.immMemTables.Load()
+	if len(*immMemTables) > 0 {
+		for _, mt := range *immMemTables {
+			value, found := mt.Get(keyBytes)
 			if found {
 				return value, true
 			}
@@ -142,22 +146,19 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 
 // Get retrieves the value/found for a given key
 func (db *DB) Get(key []byte) ([]byte, bool) {
-	value, found := db.memTable.Get(key)
-	if found {
+	if value, found := db.memTable.Get(key); found {
 		return value, true
 	}
 
-	value, found = db.getFromImm(key)
-	if found {
+	if value, found := db.getFromImm(key); found {
 		return value, true
 	}
 
-	value, err := db.sstables.Search(key)
-	if err != nil {
-		db.logger.Error("Failed to search SSTable", "error", err)
+	if value, found := db.sstables.Search(key); found {
+		return value, true
 	}
 
-	return value, false
+	return nil, false
 }
 
 // Delete marks a key as deleted by setting its value to a tombstone (0x00)
@@ -176,9 +177,11 @@ func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.Skiplist {
 	result := skiplist.New()
 
 	db.sstables.Range(result, fromKey, toKey)
-	if len(db.immMemTables) > 0 {
-		for i := len(db.immMemTables) - 1; i >= 0; i-- {
-			db.immMemTables[i].Range(result, fromKey, toKey)
+
+	immMemTables := db.immMemTables.Load()
+	if len(*immMemTables) > 0 {
+		for _, mt := range *immMemTables {
+			mt.Range(result, fromKey, toKey)
 		}
 	}
 
@@ -200,12 +203,19 @@ func (db *DB) NumSSTables() int {
 // Metrics returns a json format of the database metrics
 // metrics include total keys, number of SSTables, MemTable size, SSTables size
 func (db *DB) Metrics() DBMetrics {
+	// TODO : use atomic counters for these metrics instead
+	// of locking for better performance
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
 	memTableKeys := db.memTable.Len()
 	sstKeys := db.sstables.TotalKeys()
 	numSST := db.NumSSTables()
 	memTableSize := db.MemTableSize()
 	diskStorage := db.sstables.TotalSize()
-	pendingFlush := len(db.immMemTables)
+
+	immMemTables := db.immMemTables.Load()
+	pendingFlush := len(*immMemTables)
 
 	return DBMetrics{
 		TotalKeys:    memTableKeys + sstKeys,
@@ -224,25 +234,29 @@ func (db *DB) Compact() {
 	compact.MaybeCompactL0(db.sstables)
 }
 
-// WaitFlush waits for all pending memtable flushes goroutines to complete.
-func (db *DB) WaitFlush() {
+// WaitJobs waits for all pending flush and compaction jobs to complete
+func (db *DB) WaitJobs() {
 	db.wg.Wait()
 }
 
 func (db *DB) flushWorker() {
 	for mt := range db.flushJobs {
-		db.immMemTables = append(db.immMemTables, mt)
+		defer db.wg.Done()
+
+		db.appendImmMemTable(mt)
 		mt.SetLoggerImmutable()
 
 		newTable := table.NewSSTable(db.folder, 0, db.sstables.Len(), true, 0)
 		_, err := newTable.Open()
 		if err != nil {
 			db.logger.Error("Failed to open new SSTable", "error", err)
+			continue
 		}
 
 		err = mt.Flush(newTable)
 		if err != nil {
 			db.logger.Error("Failed to flush memtable", "error", err)
+			continue
 		}
 
 		db.sstables.Add(newTable)
@@ -253,14 +267,28 @@ func (db *DB) flushWorker() {
 }
 
 func (db *DB) removeImmMemTable(mt *table.MemTable) {
-	db.immMu.Lock()
-	defer db.immMu.Unlock()
+	for {
+		immMemTables := db.immMemTables.Load()
+		newImmMemTables := make([]*table.MemTable, len(*immMemTables)-1)
 
-	newImmMemTables := []*table.MemTable{}
-	for _, immt := range db.immMemTables {
-		if immt != mt {
-			newImmMemTables = append(newImmMemTables, mt)
+		for _, m := range *immMemTables {
+			if m != mt {
+				newImmMemTables = append(newImmMemTables, m)
+			}
+		}
+
+		if db.immMemTables.CompareAndSwap(immMemTables, &newImmMemTables) {
+			return
 		}
 	}
-	db.immMemTables = newImmMemTables
+}
+
+func (db *DB) appendImmMemTable(mt *table.MemTable) {
+	for {
+		immMemTables := db.immMemTables.Load()
+		newImmMemTables := append(append([]*table.MemTable{}, (*immMemTables)...), mt)
+		if db.immMemTables.CompareAndSwap(immMemTables, &newImmMemTables) {
+			return
+		}
+	}
 }

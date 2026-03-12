@@ -61,7 +61,7 @@ func TestGetMultipleSegments(t *testing.T) {
 		t.Fatalf("Updated key 1 must be 'bar': %s, found=%v", result, found)
 	}
 
-	db.WaitFlush()
+	db.WaitJobs()
 
 	metrics := db.Metrics()
 	if metrics.NumSSTables != 1 || metrics.DiskStorage == 0 {
@@ -103,7 +103,7 @@ func TestRange(t *testing.T) {
 		db.Set(x.EncodeKey([]byte(key), 0), []byte("foo"))
 	}
 
-	db.WaitFlush()
+	db.WaitJobs()
 
 	result := db.Range(x.EncodeKey([]byte("010"), 0), x.EncodeKey([]byte("020"), 0))
 	if result.Length() != 11 {

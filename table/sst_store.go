@@ -66,11 +66,17 @@ func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, fold
 }
 
 func (store *SSTableStore) Add(sst *SSTable) *SSTable {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	store.tables[sst.level] = append(store.tables[sst.level], sst)
 	return sst
 }
 
 func (store *SSTableStore) AddNew() *SSTable {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	table := NewSSTable(store.folder, 0, store.Len(), false, 0)
 	store.tables[0] = append(store.tables[0], table)
 	return table
@@ -85,6 +91,9 @@ func (store *SSTableStore) Len() int {
 }
 
 func (store *SSTableStore) CloseAll() error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	for _, level := range store.tables {
 		for _, table := range level {
 			err := table.Close()
@@ -124,22 +133,29 @@ func (store *SSTableStore) Replace(old, new *SSTable) {
 	})
 }
 
-func (store *SSTableStore) Search(key []byte) ([]byte, error) {
+func (store *SSTableStore) Search(key []byte) ([]byte, bool) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
 			value, err := level[i].Search(key)
 			if err != nil {
-				return []byte{}, err
+				store.logger.Error("Failed to search SSTable", "error", err)
+				continue
 			}
 			if len(value) != 0 {
-				return value, nil
+				return value, true
 			}
 		}
 	}
-	return []byte{}, nil
+	return []byte{}, false
 }
 
 func (store *SSTableStore) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
 			level[i].Range(res, fromKey, toKey)
@@ -148,6 +164,9 @@ func (store *SSTableStore) Range(res *skiplist.Skiplist, fromKey, toKey []byte) 
 }
 
 func (store *SSTableStore) DeleteIndex(key []byte) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	for _, level := range store.tables {
 		for _, table := range level {
 			table.DeleteIndex(key)
@@ -156,6 +175,8 @@ func (store *SSTableStore) DeleteIndex(key []byte) {
 }
 
 func (store *SSTableStore) Tables() map[int][]*SSTable {
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	return store.tables
 }
 

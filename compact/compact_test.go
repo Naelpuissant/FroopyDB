@@ -173,9 +173,9 @@ func TestMaybeCompactToUpperLevel(t *testing.T) {
 	}
 
 	for key, expected := range tests {
-		value, err := store.Search([]byte{byte(key)})
-		if err != nil {
-			t.Fatalf("failed to search key %v: %v", key, err)
+		value, found := store.Search([]byte{byte(key)})
+		if !found {
+			t.Fatalf("key %v not found", key)
 		}
 		if string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
