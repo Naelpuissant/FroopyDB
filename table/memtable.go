@@ -153,3 +153,7 @@ func (m *MemTable) Len() int {
 func (m *MemTable) Size() int {
 	return int(m.store.Size())
 }
+
+func (m *MemTable) WAL() *wal.WAL {
+	return m.wal
+}

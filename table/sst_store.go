@@ -65,6 +65,23 @@ func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, fold
 	return nil
 }
 
+// ImmutableAdd returns a new SSTableStore pointer with the new SSTable added
+// without modifying the original object. Used for flushing/CoW
+func (store *SSTableStore) ImmutableAdd(sst *SSTable) *SSTableStore {
+	newSSTables := map[int][]*SSTable{}
+	for level, tables := range store.tables {
+		newSSTables[level] = append([]*SSTable{}, tables...)
+	}
+	newSSTables[sst.level] = append(newSSTables[sst.level], sst)
+
+	return &SSTableStore{
+		logger:   store.logger,
+		tables:   newSSTables,
+		maxLevel: store.maxLevel,
+		folder:   store.folder,
+	}
+}
+
 func (store *SSTableStore) Add(sst *SSTable) *SSTable {
 	store.mu.Lock()
 	defer store.mu.Unlock()

@@ -55,6 +55,32 @@ klen uint16 | vlen uint 16 | key []byte | value []byte
 - immutable memtables atomic pointer + copy on write (CoW)
 - SSTables store atomic pointer + copy on write (CoW)
 
+### Flush workflow
+
+For my flush workflow I'm using copy on write (COW) and compare and swap (CAS) strategy to avoid locking and allowing concurrent reads while flushing. This implies having immutables memtables and immutables sst store, trying to swap with optimistic locking. 
+
+
+
+DB Tables state (`froopydb.Tables`) :
+- mem : current memtable
+- imm : immutable memtable (currently flushing, immutable)
+- sst : sst store (immutable)
+
+Should flush : 
+- create a new memtable
+- copy imm to new imm
+- append mem to new imm
+- CAS
+- On success : set key to new mem and start flush job
+
+Flush Job :
+- Create new sst table (not store)
+- flush old mem to new sst
+- copy sst (store) and append new sst
+- remove old mem from imm
+- CAS
+- On success : Done
+
 ## MVCC
 
 MVCC transactions, inside the hood, the key is set with the commit ts.
@@ -149,10 +175,14 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] Global cleanup 
     - [x] clean db api -> we should only call txn
     - [x] have a clear api for search/get (return (bytes and found))
-- [ ] check concurrency safety
+- [x] check concurrency safety
     - [x] Copy on Write for immutable memtables
-    - [ ] Copy on Write for sst store
-- [ ] Fix bench and update benchs
+    - [x] Copy on Write for sst store
+- [ ] Fix CI
+- [ ] Just quick check mvcc on range/get from sst
+- [ ] Put back background compaction jobs
+- [ ] Clear db metrics
+- [ ] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
 - [ ] Add Range query to txn
