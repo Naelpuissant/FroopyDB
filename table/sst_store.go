@@ -3,7 +3,6 @@ package table
 import (
 	"fmt"
 	"froopydb/logger"
-	"froopydb/skiplist"
 	"os"
 	"path/filepath"
 	"sort"
@@ -156,12 +155,8 @@ func (store *SSTableStore) Search(key []byte) ([]byte, bool) {
 
 	for _, level := range store.tables {
 		for i := len(level) - 1; i >= 0; i-- {
-			value, err := level[i].Search(key)
-			if err != nil {
-				store.logger.Error("Failed to search SSTable", "error", err)
-				continue
-			}
-			if len(value) != 0 {
+			value, found := level[i].Search(key)
+			if found {
 				return value, true
 			}
 		}
@@ -169,7 +164,7 @@ func (store *SSTableStore) Search(key []byte) ([]byte, bool) {
 	return []byte{}, false
 }
 
-func (store *SSTableStore) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
+func (store *SSTableStore) Range(res map[string][]byte, fromKey, toKey []byte) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 

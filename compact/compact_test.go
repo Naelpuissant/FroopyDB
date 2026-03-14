@@ -89,11 +89,8 @@ func TestMaybeCompactL0(t *testing.T) {
 	}
 
 	for key, expected := range tests {
-		value, err := newTable.Search([]byte{byte(key)})
-		if err != nil {
-			t.Fatalf("failed to search key %v: %v", key, err)
-		}
-		if string(value) != expected {
+		value, found := newTable.Search([]byte{byte(key)})
+		if !found || string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
 		}
 	}

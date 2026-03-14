@@ -2,7 +2,6 @@ package table
 
 import (
 	"fmt"
-	"froopydb/skiplist"
 	"io"
 	"os"
 	"path/filepath"
@@ -193,21 +192,22 @@ func (sst *SSTable) DeleteIndex(key []byte) {
 	}
 }
 
-func (sst *SSTable) Search(key []byte) ([]byte, error) {
+func (sst *SSTable) Search(key []byte) ([]byte, bool) {
 	offset, found := sst.index[string(key)]
 	if !found {
-		return []byte{}, nil
+		return []byte{}, false
 	}
 
 	value, err := sst.reader.ReadValueAtOffset(int64(offset))
 	if err != nil {
-		return []byte{}, err
+		// TODO : log error properly here
+		return []byte{}, false
 	}
 
-	return value, nil
+	return value, true
 }
 
-func (sst *SSTable) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
+func (sst *SSTable) Range(res map[string][]byte, fromKey, toKey []byte) {
 	if sst.minKey > string(toKey) || sst.maxKey < string(fromKey) {
 		return
 	}
@@ -219,9 +219,12 @@ func (sst *SSTable) Range(res *skiplist.Skiplist, fromKey, toKey []byte) {
 		if key > string(toKey) {
 			return
 		}
-		value, err := sst.Search([]byte(key))
-		if err == nil {
-			res.Insert([]byte(key), value)
+
+		value, found := sst.Search([]byte(key))
+		if found {
+			res[key] = value
+		} else {
+			delete(res, key)
 		}
 	}
 }

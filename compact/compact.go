@@ -10,9 +10,9 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	for _, table := range tables {
 		table.ResetFilePointer()
 		for idx := range table.Index() {
-			value, err := table.Search([]byte(idx))
-			if err != nil {
-				panic(err) // TODO: handle error properly
+			value, found := table.Search([]byte(idx))
+			if !found {
+				panic("value not found in table during compaction")
 			}
 			compactedTable[idx] = value
 		}
