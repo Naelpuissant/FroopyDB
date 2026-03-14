@@ -125,11 +125,13 @@ func (m *MemTable) Get(key []byte) ([]byte, bool) {
 }
 
 // Range get range of keys from fromKey to toKey (inclusive)
-func (m *MemTable) Range(res *skiplist.Skiplist, fromKey []byte, toKey []byte) {
+func (m *MemTable) Range(res map[string][]byte, fromKey []byte, toKey []byte) {
 	nodes := m.store.Range(fromKey, toKey)
 	for _, node := range nodes {
 		if !node.IsDeleted() {
-			res.Insert(node.Key, node.Value)
+			res[string(node.Key)] = node.Value
+		} else {
+			delete(res, string(node.Key))
 		}
 	}
 }

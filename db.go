@@ -9,7 +9,6 @@ import (
 
 	"froopydb/compact"
 	"froopydb/logger"
-	"froopydb/skiplist"
 	"froopydb/table"
 	"froopydb/wal"
 )
@@ -180,35 +179,30 @@ func (db *DB) Get(key []byte) ([]byte, bool) {
 		return value, true
 	}
 
-	db.logger.Debug("Key not found in memtable", "key", string(key), "memtableSize", tables.mem.Size())
 	if value, found := db.getFromImm(key); found {
 		return value, true
 	}
 
-	db.logger.Debug("Key not found in imm memtable", "key", string(key), "immMemTables", len(tables.imm))
 	if value, found := tables.sst.Search(key); found {
 		return value, true
 	}
 
-	db.logger.Debug("Key not found in sstables", "key", string(key))
 	return nil, false
 }
 
 // Delete marks a key as deleted by setting its value to a tombstone (0x00)
 func (db *DB) Delete(key []byte) {
 	_ = db.Set(key, []byte{0x00})
-	tables := db.tables.Load()
-	tables.sst.DeleteIndex(key)
 }
 
 // Range retrieves all key-value pairs in the specified key range [fromKey, toKey]
 // and returns them as a skiplist
-func (db *DB) Range(fromKey []byte, toKey []byte) *skiplist.Skiplist {
+func (db *DB) Range(fromKey []byte, toKey []byte) map[string][]byte {
 	if bytes.Compare(fromKey, toKey) > 0 {
-		return skiplist.New()
+		return map[string][]byte{}
 	}
 
-	result := skiplist.New()
+	result := map[string][]byte{}
 
 	tables := db.tables.Load()
 	tables.sst.Range(result, fromKey, toKey)
@@ -264,8 +258,10 @@ func (db *DB) Metrics() DBMetrics {
 
 // Compact triggers a manual compaction of SSTables.
 func (db *DB) Compact() {
-	// TODO : Send tables state
+	db.mu.Lock()
+	defer db.mu.Unlock()
 	tables := db.tables.Load()
+	// TODO : Send tables state
 	compact.MaybeCompactToUpperLevel(tables.sst)
 	compact.MaybeCompactL0(tables.sst)
 }

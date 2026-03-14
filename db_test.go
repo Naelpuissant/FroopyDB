@@ -106,46 +106,46 @@ func TestRange(t *testing.T) {
 	db.WaitJobs()
 
 	result := db.Range(x.EncodeKey([]byte("010"), 0), x.EncodeKey([]byte("020"), 0))
-	if result.Length() != 11 {
-		t.Fatalf("Range should return 11 items, got %d", result.Length())
+	if len(result) != 11 {
+		t.Fatalf("Range should return 11 items, got %d", len(result))
 	}
 
 	result = db.Range(x.EncodeKey([]byte("090"), 0), x.EncodeKey([]byte("099"), 0))
-	if result.Length() != 10 {
-		t.Fatalf("Range should return 10 items, got %d", result.Length())
+	if len(result) != 10 {
+		t.Fatalf("Range should return 10 items, got %d", len(result))
 	}
 
 	result = db.Range(x.EncodeKey([]byte("200"), 0), x.EncodeKey([]byte("300"), 0))
-	if result.Length() != 0 {
-		t.Fatalf("Range should return 0 items, got %d", result.Length())
+	if len(result) != 0 {
+		t.Fatalf("Range should return 0 items, got %d", len(result))
 	}
 
 	result = db.Range(x.EncodeKey([]byte("000"), 0), x.EncodeKey([]byte("099"), 0))
-	if result.Length() != 100 {
-		t.Fatalf("Range should return 100 items, got %d", result.Length())
+	if len(result) != 100 {
+		t.Fatalf("Range should return 100 items, got %d", len(result))
 	}
 
 	result = db.Range(x.EncodeKey([]byte("050"), 0), x.EncodeKey([]byte("040"), 0))
-	if result.Length() != 0 {
-		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Length())
+	if len(result) != 0 {
+		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", len(result))
 	}
 
 	db.Delete(x.EncodeKey([]byte("001"), 0))
 	result = db.Range(x.EncodeKey([]byte("000"), 0), x.EncodeKey([]byte("002"), 0))
-	if result.Length() != 2 {
-		t.Fatalf("Range should return 2 items after deletion, got %d", result.Length())
+	if len(result) != 2 {
+		t.Fatalf("Range should return 2 items after deletion, got %d", len(result))
 	}
 
 	db.Set(x.EncodeKey([]byte("002"), 0), []byte("bar"))
 	result = db.Range(x.EncodeKey([]byte("002"), 0), x.EncodeKey([]byte("002"), 0))
-	updatedValue, _ := result.First().Value, result.First() != nil
-	if result.Length() != 1 || string(updatedValue) != "bar" {
-		t.Fatalf("Range should return 1 item after setting key 002 to 'bar', got %d and value '%s'", result.Length(), string(updatedValue))
+	updatedValue, found := result[string(x.EncodeKey([]byte("002"), 0))]
+	if len(result) != 1 || !found || string(updatedValue) != "bar" {
+		t.Fatalf("Range should return 1 item after setting key 002 to 'bar', got %d and value '%s'", len(result), string(updatedValue))
 	}
 
 	result = db.Range(x.EncodeKey([]byte("1"), 0), x.EncodeKey([]byte("0"), 0))
-	if result.Length() != 0 {
-		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", result.Length())
+	if len(result) != 0 {
+		t.Fatalf("Range with fromKey > toKey should return 0 items, got %d", len(result))
 	}
 }
 
