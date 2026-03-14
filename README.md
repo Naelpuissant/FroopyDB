@@ -178,7 +178,6 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] check concurrency safety
     - [x] Copy on Write for immutable memtables
     - [x] Copy on Write for sst store
-- [ ] Fix CI
 - [ ] Just quick check mvcc on range/get from sst
 - [ ] Put back background compaction jobs
 - [ ] Clear db metrics

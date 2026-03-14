@@ -169,6 +169,7 @@ func TestCompactAndMerge(t *testing.T) {
 	db.Delete(x.EncodeKey([]byte("2"), 0))
 	db.Delete(x.EncodeKey([]byte("3"), 0))
 	db.Set(x.EncodeKey([]byte("2"), 0), []byte("hey!"))
+	db.WaitJobs()
 
 	db.Compact()
 
