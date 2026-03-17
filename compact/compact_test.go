@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestMaybeCompactL0(t *testing.T) {
+func TestMaybeCompact(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
 
 	dir := t.TempDir()
@@ -51,7 +51,7 @@ func TestMaybeCompactL0(t *testing.T) {
 		t.Fatalf("expected 3 tables, got %d", len(store.Tables()))
 	}
 
-	compact.MaybeCompactL0(store)
+	compact.MaybeCompact(store)
 
 	files, _ := os.ReadDir(dir)
 	sstCount := 0
@@ -91,90 +91,6 @@ func TestMaybeCompactL0(t *testing.T) {
 	for key, expected := range tests {
 		value, found := newTable.Search([]byte{byte(key)})
 		if !found || string(value) != expected {
-			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
-		}
-	}
-}
-
-func TestMaybeCompactToUpperLevel(t *testing.T) {
-	logger := logger.NewLogger(logger.DEBUG)
-
-	dir := t.TempDir()
-
-	store, _ := table.NewSSTableStore(logger, dir)
-
-	t0 := store.AddNew()
-	t0.Open()
-	t0.InitWriter()
-	t0.WriteDataBlock([]byte{1}, []byte("a"))
-	t0.WriteDataBlock([]byte{4}, []byte("d"))
-	idxOffset, _ := t0.WriteIndex()
-	t0.WriteMetadata(idxOffset)
-	t0.FlushWriter()
-	t0.Ready()
-	defer t0.Close()
-
-	t1 := store.AddNew()
-	t1.Open()
-	t1.InitWriter()
-	t1.WriteDataBlock([]byte{4}, []byte("D"))
-	idxOffset, _ = t1.WriteIndex()
-	t1.WriteMetadata(idxOffset)
-	t1.FlushWriter()
-	t1.Ready()
-	defer t1.Close()
-
-	t2 := store.AddNew()
-	t2.Open()
-	t2.InitWriter()
-	t2.WriteDataBlock([]byte{1}, []byte("a"))
-	idxOffset, _ = t2.WriteIndex()
-	t2.WriteMetadata(idxOffset)
-	t2.FlushWriter()
-	t2.Ready()
-	defer t2.Close()
-
-	compact.MaybeCompactL0(store)
-
-	t3 := store.AddNew()
-	t3.Open()
-	t3.InitWriter()
-	t3.WriteDataBlock([]byte{2}, []byte("B"))
-	t3.WriteDataBlock([]byte{5}, []byte("e"))
-	idxOffset, _ = t3.WriteIndex()
-	t3.WriteMetadata(idxOffset)
-	t3.FlushWriter()
-	t3.Ready()
-	defer t3.Close()
-
-	t4 := store.AddNew()
-	t4.Open()
-	t4.InitWriter()
-	t4.WriteDataBlock([]byte{1}, []byte("A"))
-	t4.WriteDataBlock([]byte{3}, []byte("C"))
-	t4.WriteDataBlock([]byte{5}, []byte("E"))
-	idxOffset, _ = t4.WriteIndex()
-	t4.WriteMetadata(idxOffset)
-	t4.FlushWriter()
-	t4.Ready()
-	defer t4.Close()
-
-	compact.MaybeCompactToUpperLevel(store)
-
-	tests := map[int]string{
-		1: "A",
-		2: "B",
-		3: "C",
-		4: "D",
-		5: "E",
-	}
-
-	for key, expected := range tests {
-		value, found := store.Search([]byte{byte(key)})
-		if !found {
-			t.Fatalf("key %v not found", key)
-		}
-		if string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
 		}
 	}

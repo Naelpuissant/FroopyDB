@@ -81,6 +81,15 @@ func (store *SSTableStore) ImmutableAdd(sst *SSTable) *SSTableStore {
 	}
 }
 
+func (store *SSTableStore) ImmutableReplaceTables(new map[int][]*SSTable) *SSTableStore {
+	return &SSTableStore{
+		logger:   store.logger,
+		tables:   new,
+		maxLevel: store.maxLevel,
+		folder:   store.folder,
+	}
+}
+
 func (store *SSTableStore) Add(sst *SSTable) *SSTable {
 	store.mu.Lock()
 	defer store.mu.Unlock()

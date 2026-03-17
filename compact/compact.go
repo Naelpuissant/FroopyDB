@@ -8,11 +8,11 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	compactedTable := map[string][]byte{}
 
 	for _, table := range tables {
-		table.ResetFilePointer()
+		table.ResetFilePointer() // TODO : Still necessary ?
 		for idx := range table.Index() {
 			value, found := table.Search([]byte(idx))
 			if !found {
-				panic("value not found in table during compaction")
+				continue
 			}
 			compactedTable[idx] = value
 		}
@@ -29,80 +29,45 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	indexOffset, _ := tmpSegment.WriteIndex()
 	tmpSegment.WriteMetadata(indexOffset)
 	tmpSegment.FlushWriter()
+	tmpSegment.Ready()
 
 	return tmpSegment
 }
 
-func MaybeCompactL0(store *t.SSTableStore) {
+func MaybeCompact(store *t.SSTableStore) map[int][]*t.SSTable {
 	threshold := 3
+	maxLevel := 2
+	newTables := map[int][]*t.SSTable{}
 
-	tablesToCompact := []*t.SSTable{}
-	tablesToDelete := []*t.SSTable{}
-	tablesToReplace := [][2]*t.SSTable{}
-
-	count := 0
-	for levelKey, level := range store.Tables() {
-		for _, table := range level {
-			// for now I only handle l0 compaction but I should handle higher levels
-			if levelKey == 0 {
-				count++
-				if count >= threshold {
-					newTable := doCompact(append(tablesToCompact, table), table)
-					tablesToDelete = append(tablesToDelete, tablesToCompact...)
-					tablesToReplace = append(tablesToReplace, [2]*t.SSTable{table, newTable})
-					count = 0
-					tablesToCompact = []*t.SSTable{}
-				} else {
-					tablesToCompact = append(tablesToCompact, table)
-				}
-			}
+	for levelKey, tables := range store.Tables() {
+		// Ignore levels that are above the max level for compaction
+		if levelKey >= maxLevel {
+			newTables[levelKey] = tables
+			continue
+		}
+		for i := 0; i+threshold-1 < len(tables); i += threshold {
+			tablesToCompact := tables[i : i+threshold]
+			newTable := doCompact(tablesToCompact, tables[i+threshold-1])
+			deleteTables(tablesToCompact)
+			newTables[levelKey+1] = append(newTables[levelKey+1], newTable)
+		}
+		if len(tables)%threshold != 0 {
+			remainTables := tables[len(tables)-len(tables)%threshold:]
+			newTables[levelKey] = append(newTables[levelKey], remainTables...)
 		}
 	}
 
-	for _, table := range tablesToDelete {
-		store.Remove(table)
-	}
-
-	for _, table := range tablesToReplace {
-		table[1].Ready()
-		store.Replace(table[0], table[1])
-	}
+	return newTables
 }
 
-func MaybeCompactToUpperLevel(store *t.SSTableStore) {
-	tablesToDelete := []*t.SSTable{}
-	tablesToReplace := [][2]*t.SSTable{}
-
-	for i := range store.Tables() {
-		// we are at the top level
-		if i+1 > len(store.Tables()) {
-			return
-		}
-		tablesToCompact := []*t.SSTable{}
-		for _, l1 := range store.Tables()[i+1] {
-			l1min, l1max := l1.GetMinMax()
-			tablesToCompact = append(tablesToCompact, l1)
-			for _, l0 := range store.Tables()[i] {
-				l0min, l0max := l0.GetMinMax()
-				if l0max >= l1min && l0min <= l1max {
-					tablesToCompact = append(tablesToCompact, l0)
-					tablesToDelete = append(tablesToDelete, l0)
-
-					l1min = min(l0min, l1min)
-					l1max = max(l0max, l1max)
-				}
-			}
-			newTable := doCompact(tablesToCompact, l1)
-			tablesToReplace = append(tablesToReplace, [2]*t.SSTable{l1, newTable})
-		}
-	}
-
-	for _, table := range tablesToDelete {
-		store.Remove(table)
-	}
-
-	for _, table := range tablesToReplace {
-		table[1].Ready()
-		store.Replace(table[0], table[1])
+// TODO : Table deletion should be done once
+// we are sure that every reads has finished
+// basically 2 solutions :
+// - Wait n sec and delete
+// - table pointer trigger deletion when reached 0
+// first is fine for now
+func deleteTables(tables []*t.SSTable) {
+	for _, table := range tables {
+		table.Remove()
 	}
 }

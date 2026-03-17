@@ -127,6 +127,7 @@ func (sst *SSTable) setMinMaxKeys(key []byte) {
 func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 	offset := uint32(sst.writer.Pos)
 	sst.setMinMaxKeys(key)
+
 	err := sst.writer.WriteDataBlock(value)
 	if err != nil {
 		return err

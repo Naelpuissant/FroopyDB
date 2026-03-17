@@ -182,6 +182,13 @@ func TestCompactAndMerge(t *testing.T) {
 	if found || string(result) != "" {
 		t.Fatalf("Key 3 must be deleted: %s, found=%v", result, found)
 	}
+
+	db.WaitJobs() // make sure to finish compaction
+
+	result, found = db.Get(x.EncodeKey([]byte("3"), 0))
+	if found || string(result) != "" {
+		t.Fatalf("Key 3 must be deleted: %s, found=%v", result, found)
+	}
 }
 
 func BenchmarkSet(b *testing.B) {

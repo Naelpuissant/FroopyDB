@@ -13,7 +13,14 @@ import (
 	"froopydb/wal"
 )
 
-var (
+type SSTJobType int
+
+const (
+	FlushJob SSTJobType = iota
+	CompactJob
+)
+
+const (
 	KB = 1024
 	MB = 1024 * KB
 )
@@ -65,9 +72,10 @@ type DB struct {
 	folder     string
 	TxnManager *TxnManager
 	tables     atomic.Pointer[Tables]
-	flushJobs  chan *Tables
-	wg         sync.WaitGroup
-	mu         sync.RWMutex
+
+	sstJobs chan SSTJobType
+	wg      sync.WaitGroup
+	mu      sync.RWMutex
 }
 
 func NewDB(config *DBConfig) *DB {
@@ -102,7 +110,7 @@ func NewDB(config *DBConfig) *DB {
 		logger:     logger,
 		folder:     config.Folder,
 		TxnManager: txnManager,
-		flushJobs:  make(chan *Tables, 10),
+		sstJobs:    make(chan SSTJobType, 10),
 	}
 
 	tables := NewTables(
@@ -112,7 +120,7 @@ func NewDB(config *DBConfig) *DB {
 	)
 	db.tables.Store(tables)
 
-	go db.flushWorker()
+	go db.sstWorker()
 
 	return db
 }
@@ -126,37 +134,31 @@ func (db *DB) NewTransaction() *Txn {
 	return NewTxn(db)
 }
 
-// Set inserts or updates a key-value pair in the database
-// and returns the value that was set.
-// If the memtable exceeds its max size after the set,
-// it will be flushed to disk in the background.
-func (db *DB) Set(key []byte, value []byte) []byte {
-	for {
-		tables := db.tables.Load()
-		if !tables.mem.ShouldFlush(key, value) {
-			tables.mem.Set(key, value)
-			return value
+// Get retrieves the value/found for a given key
+func (db *DB) Get(key []byte) ([]byte, bool) {
+	tables := db.tables.Load()
+	if value, found := tables.mem.Get(key); found {
+		if value[0] == 0x00 {
+			return []byte{}, false
 		}
-
-		// Check if it's just an update (key already exists)
-		_, found := tables.mem.Get(key)
-		if found {
-			tables.mem.Set(key, value)
-			return value
-		}
-
-		// try flushing
-		newImm := db.appendImmMemTable(tables.imm, tables.mem)
-		newMem := table.NewMemTable(db.logger, tables.mem.MaxSize(), wal.NewWAL(db.folder, false))
-		newTables := NewTables(newMem, newImm, tables.sst)
-		if db.tables.CompareAndSwap(tables, newTables) {
-			tables.mem.SetLoggerImmutable()
-			db.wg.Add(1)
-			db.flushJobs <- tables
-			newMem.Set(key, value)
-			return value
-		}
+		return value, true
 	}
+
+	if value, found := db.getFromImm(key); found {
+		if value[0] == 0x00 {
+			return []byte{}, false
+		}
+		return value, true
+	}
+
+	if value, found := tables.sst.Search(key); found {
+		if value[0] == 0x00 {
+			return []byte{}, false
+		}
+		return value, true
+	}
+
+	return nil, false
 }
 
 func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
@@ -170,24 +172,6 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 		}
 	}
 	return []byte{}, false
-}
-
-// Get retrieves the value/found for a given key
-func (db *DB) Get(key []byte) ([]byte, bool) {
-	tables := db.tables.Load()
-	if value, found := tables.mem.Get(key); found {
-		return value, true
-	}
-
-	if value, found := db.getFromImm(key); found {
-		return value, true
-	}
-
-	if value, found := tables.sst.Search(key); found {
-		return value, true
-	}
-
-	return nil, false
 }
 
 // Delete marks a key as deleted by setting its value to a tombstone (0x00)
@@ -214,6 +198,127 @@ func (db *DB) Range(fromKey []byte, toKey []byte) map[string][]byte {
 	tables.mem.Range(result, fromKey, toKey)
 
 	return result
+}
+
+// Compact triggers a manual compaction of SSTables.
+func (db *DB) Compact() {
+	db.wg.Add(1)
+	db.sstJobs <- CompactJob
+}
+
+// Set inserts or updates a key-value pair in the database
+// and returns the value that was set.
+// If the memtable exceeds its max size after the set,
+// it will be flushed to disk in the background.
+func (db *DB) Set(key []byte, value []byte) []byte {
+	for {
+		tables := db.tables.Load()
+		if !tables.mem.ShouldFlush(key, value) {
+			tables.mem.Set(key, value)
+			return value
+		}
+
+		// Check if it's just an update (key already exists)
+		_, found := tables.mem.Get(key)
+		if found {
+			tables.mem.Set(key, value)
+			return value
+		}
+
+		// try flushing
+		// put memtable in imm memtable slice and create a new memtable for new writes
+		newImm := db.appendImmMemTable(tables.imm, tables.mem)
+		newMem := table.NewMemTable(db.logger, tables.mem.MaxSize(), wal.NewWAL(db.folder, false))
+		newTables := NewTables(newMem, newImm, tables.sst)
+		if db.tables.CompareAndSwap(tables, newTables) {
+			tables.mem.SetLoggerImmutable()
+			db.wg.Add(1)
+			db.sstJobs <- FlushJob
+			newMem.Set(key, value)
+			return value
+		}
+	}
+}
+
+func (db *DB) runFlushJob(tables *Tables) *Tables {
+	if len(tables.imm) == 0 {
+		db.logger.Error("Empty immutable memtables array, nothing to flush")
+		return tables
+	}
+
+	newTable := table.NewSSTable(db.folder, 0, tables.sst.Len(), true, 0)
+	if _, err := newTable.Open(); err != nil {
+		db.logger.Error("Failed to open new SSTable", "error", err)
+	}
+
+	// We always flush the oldest immutable memtable
+	oldestImm := tables.imm[0]
+	if err := oldestImm.Flush(newTable); err != nil {
+		db.logger.Error("Failed to flush memtable", "error", err)
+	}
+
+	newSST := tables.sst.ImmutableAdd(newTable)
+	newImm := db.removeImmMemTable(tables.imm, oldestImm)
+	return NewTables(tables.mem, newImm, newSST)
+}
+
+func (db *DB) runCompactJob(tables *Tables) *Tables {
+	sst := compact.MaybeCompact(tables.sst)
+	newSSTStore := tables.sst.ImmutableReplaceTables(sst)
+	return NewTables(tables.mem, tables.imm, newSSTStore)
+}
+
+// sstWorker is a background worker that listens for flush compaction jobs,
+// this avoid having to deal with concurrent flush/compaction jobs
+func (db *DB) sstWorker() {
+	for job := range db.sstJobs {
+		for {
+			tables := db.tables.Load()
+
+			var newTables *Tables
+			switch job {
+			case FlushJob:
+				newTables = db.runFlushJob(tables)
+			case CompactJob:
+				newTables = db.runCompactJob(tables)
+			default:
+				db.logger.Error("Unknown job type", "job", job)
+				continue
+			}
+
+			if db.tables.CompareAndSwap(tables, newTables) {
+				break
+			}
+		}
+		db.wg.Done()
+	}
+}
+
+// WaitJobs waits for all pending flush and compaction jobs to complete
+func (db *DB) WaitJobs() {
+	db.wg.Wait()
+}
+
+// removeImmMemTable removes the given memtable and returns the new imm memtable slice without it
+func (db *DB) removeImmMemTable(imm []*table.MemTable, mt *table.MemTable) []*table.MemTable {
+	if len(imm) == 0 {
+		return imm
+	}
+
+	newImm := []*table.MemTable{}
+	for _, m := range imm {
+		if m != mt {
+			newImm = append(newImm, m)
+		}
+	}
+
+	return newImm
+}
+
+// appendImmMemTable appends the given memtable to the imm memtable slice
+// and returns the new imm memtable slice without it
+func (db *DB) appendImmMemTable(imm []*table.MemTable, mt *table.MemTable) []*table.MemTable {
+	return append(append([]*table.MemTable{}, imm...), mt)
 }
 
 // MemTableSize returns the current size of the MemTable in bytes
@@ -254,65 +359,4 @@ func (db *DB) Metrics() DBMetrics {
 		DiskStorage:  diskStorage,
 		PendingFlush: pendingFlush,
 	}
-}
-
-// Compact triggers a manual compaction of SSTables.
-func (db *DB) Compact() {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	tables := db.tables.Load()
-	// TODO : Send tables state
-	compact.MaybeCompactToUpperLevel(tables.sst)
-	compact.MaybeCompactL0(tables.sst)
-}
-
-// WaitJobs waits for all pending flush and compaction jobs to complete
-func (db *DB) WaitJobs() {
-	db.wg.Wait()
-}
-
-func (db *DB) flushWorker() {
-	for old := range db.flushJobs {
-		for {
-			tables := db.tables.Load()
-
-			newTable := table.NewSSTable(db.folder, 0, old.sst.Len(), true, 0)
-			_, err := newTable.Open()
-			if err != nil {
-				db.logger.Error("Failed to open new SSTable", "error", err)
-			}
-
-			err = old.mem.Flush(newTable)
-			if err != nil {
-				db.logger.Error("Failed to flush memtable", "error", err)
-			}
-
-			newSST := tables.sst.ImmutableAdd(newTable)
-			newImm := db.removeImmMemTable(tables.imm, old.mem)
-			newTables := NewTables(tables.mem, newImm, newSST)
-			if db.tables.CompareAndSwap(tables, newTables) {
-				break
-			}
-		}
-		db.wg.Done()
-	}
-}
-
-// removeImmMemTable removes the given memtable and returns the new imm memtable slice without it
-func (db *DB) removeImmMemTable(imm []*table.MemTable, mt *table.MemTable) []*table.MemTable {
-	newImmMemTables := make([]*table.MemTable, 0, len(imm)-1)
-
-	for _, m := range imm {
-		if m != mt {
-			newImmMemTables = append(newImmMemTables, m)
-		}
-	}
-
-	return newImmMemTables
-}
-
-// appendImmMemTable appends the given memtable to the imm memtable slice
-// and returns the new imm memtable slice without it
-func (db *DB) appendImmMemTable(imm []*table.MemTable, mt *table.MemTable) []*table.MemTable {
-	return append(append([]*table.MemTable{}, imm...), mt)
 }

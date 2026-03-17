@@ -118,7 +118,7 @@ func (m *MemTable) Set(key, value []byte) {
 
 func (m *MemTable) Get(key []byte) ([]byte, bool) {
 	node, found := m.store.Search(key)
-	if !found || node.IsDeleted() {
+	if !found {
 		return []byte{}, false
 	}
 	return node.Value, true

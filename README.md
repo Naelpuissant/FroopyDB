@@ -178,8 +178,9 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] check concurrency safety
     - [x] Copy on Write for immutable memtables
     - [x] Copy on Write for sst store
-- [ ] Just quick check mvcc on range/get from sst
-- [ ] Put back background compaction jobs
+- [ ] Just quick check mvcc on get from sst
+- [ ] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
+- [x] Put back background compaction jobs
 - [ ] Clear db metrics
 - [ ] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
