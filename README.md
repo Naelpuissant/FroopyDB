@@ -36,6 +36,8 @@ klen uint16 | vlen uint 16 | key []byte | value []byte
 
 ## Compaction Process
 
+> **Important:** TO BE UPDATED
+
 - Level based compaction (L0, L1) 
 - Triggered at each memtable flush
 - add level to file name ([level]_[incr].sst)
@@ -52,6 +54,7 @@ klen uint16 | vlen uint 16 | key []byte | value []byte
 - Write wal log in a channel
 - Flush memtable in a channel
 - Skiplist mutexed
+- SST write ordered in a channel (flush/compaction)
 - immutable memtables atomic pointer + copy on write (CoW)
 - SSTables store atomic pointer + copy on write (CoW)
 
@@ -71,15 +74,15 @@ Should flush :
 - copy imm to new imm
 - append mem to new imm
 - CAS
-- On success : set key to new mem and start flush job
+- on success : set key to new mem and start flush job
 
 Flush Job :
-- Create new sst table (not store)
-- flush old mem to new sst
+- create new sst table (not store)
+- flush oldest mem to new sst
 - copy sst (store) and append new sst
 - remove old mem from imm
 - CAS
-- On success : Done
+- on success : Done
 
 ## MVCC
 
@@ -154,6 +157,7 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] Add concurrency for Flush
 - [x] Add concurrency for Wal Write
 - [x] Add concurrency for Compaction
+- [x] Setup CI
 - [x] Clear split of files for better unit testing (wal, memtable, sst, db)
 - [x] Continue split big files (wal, memtable, sst, db)
 - [x] Add separeted parser for sstable (to dig)
@@ -178,27 +182,28 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] check concurrency safety
     - [x] Copy on Write for immutable memtables
     - [x] Copy on Write for sst store
-- [ ] Just quick check mvcc on get from sst
+- [ ] Just quick check mvcc on get from sst (hell nah)
 - [ ] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
+    - [ ] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
+- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
 - [x] Put back background compaction jobs
+- [x] Improve compaction algo (multi level)
 - [ ] Clear db metrics
 - [ ] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
 - [ ] Add Range query to txn
-- [ ] Add more unit testing (again)
-- [ ] Improve compaction algo (multi level)
-- [ ] Improve compaction perfs (minimal cpu usage)
+- [ ] arena skiplist with cas instead of mutex lock
 - [ ] sst compression
-- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
 - [ ] Improve WAL (batch write...)
 - [ ] Allow transactionless operations (no conflict checking)
-- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db)
+- [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db, int db should benefit from skiplist faster compare)
+- [ ] Study MMap potential use and benefits
+- [ ] add caching
+- [ ] Improve compaction perfs (minimal cpu usage)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
     - [ ] Test concurent queries
-- [ ] Study MMap potential use and benefits
-- [x] Setup CI
 - [ ] handle big values/keys
 - [ ] Recode everything in Rust (or zig lol ?)
     - [ ] Do Python binding
