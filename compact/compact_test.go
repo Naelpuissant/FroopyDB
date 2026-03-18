@@ -78,8 +78,8 @@ func TestMaybeCompact(t *testing.T) {
 		t.Fatalf("failed to load new sstable: %v", err)
 	}
 
-	if len(newTable.Index()) != 3 {
-		t.Fatalf("expected 3 keys in merged sstable, got %d", len(newTable.Index()))
+	if newTable.Len() != 3 {
+		t.Fatalf("expected 3 keys in merged sstable, got %d", newTable.Len())
 	}
 
 	tests := map[int]string{

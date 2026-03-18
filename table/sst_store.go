@@ -184,17 +184,6 @@ func (store *SSTableStore) Range(res map[string][]byte, fromKey, toKey []byte) {
 	}
 }
 
-func (store *SSTableStore) DeleteIndex(key []byte) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	for _, level := range store.tables {
-		for _, table := range level {
-			table.DeleteIndex(key)
-		}
-	}
-}
-
 func (store *SSTableStore) Tables() map[int][]*SSTable {
 	store.mu.Lock()
 	defer store.mu.Unlock()

@@ -2,20 +2,14 @@ package compact
 
 import (
 	t "froopydb/table"
+	"maps"
 )
 
 func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	compactedTable := map[string][]byte{}
 
 	for _, table := range tables {
-		table.ResetFilePointer() // TODO : Still necessary ?
-		for idx := range table.Index() {
-			value, found := table.Search([]byte(idx))
-			if !found {
-				continue
-			}
-			compactedTable[idx] = value
-		}
+		maps.Insert(compactedTable, table.KVIter())
 	}
 
 	// persist in new tmp file with max incr file name

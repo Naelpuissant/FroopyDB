@@ -2,7 +2,7 @@ package table
 
 import (
 	"fmt"
-	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,7 +79,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	keys := []string{}
 	minKey := ""
 	maxKey := ""
-	for item, err := range sstReader.Index() {
+	for item, err := range sstReader.IndexIter() {
 		if err != nil {
 			return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
 		}
@@ -183,16 +183,6 @@ func (sst *SSTable) Rename(new string) {
 	sst.name = new
 }
 
-func (sst *SSTable) DeleteIndex(key []byte) {
-	delete(sst.index, string(key))
-	for i, k := range sst.keys {
-		if k == string(key) {
-			sst.keys = append(sst.keys[:i], sst.keys[i+1:]...)
-			break
-		}
-	}
-}
-
 func (sst *SSTable) Search(key []byte) ([]byte, bool) {
 	offset, found := sst.index[string(key)]
 	if !found {
@@ -201,8 +191,7 @@ func (sst *SSTable) Search(key []byte) ([]byte, bool) {
 
 	value, err := sst.reader.ReadValueAtOffset(int64(offset))
 	if err != nil {
-		// TODO : log error properly here
-		return []byte{}, false
+		panic(err)
 	}
 
 	return value, true
@@ -271,12 +260,21 @@ func (sst *SSTable) GetMinMax() (string, string) {
 	return sst.minKey, sst.maxKey
 }
 
-func (sst *SSTable) ResetFilePointer() {
-	sst.file.Seek(0, io.SeekStart)
-}
+func (sst *SSTable) KVIter() iter.Seq2[string, []byte] {
+	return func(yield func(string, []byte) bool) {
+		for _, key := range sst.keys {
+			offset, _ := sst.index[key]
 
-func (sst *SSTable) Index() map[string]uint32 {
-	return sst.index
+			value, err := sst.reader.ReadValueAtOffset(int64(offset))
+			if err != nil {
+				panic(err)
+			}
+
+			if !yield(key, value) {
+				return
+			}
+		}
+	}
 }
 
 func (sst *SSTable) Folder() string {

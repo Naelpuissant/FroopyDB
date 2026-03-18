@@ -47,7 +47,7 @@ func (r *SSTReader) SetMetadata() {
 	}
 }
 
-func (r *SSTReader) Index() iter.Seq2[*IdxItem, error] {
+func (r *SSTReader) IndexIter() iter.Seq2[*IdxItem, error] {
 	return func(yield func(*IdxItem, error) bool) {
 		endIdxOffset := r.fsize - int64(METADATA_SIZE)
 		curr := int64(r.Metadata.IdxOffset)

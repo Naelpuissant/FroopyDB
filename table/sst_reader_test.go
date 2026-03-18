@@ -28,7 +28,7 @@ func TestSSTableReaderIndex(t *testing.T) {
 		t.Fatalf("expected idx offset 299, got %d", sstReader.Metadata.IdxOffset)
 	}
 
-	for item, err := range sstReader.Index() {
+	for item, err := range sstReader.IndexIter() {
 		if err != nil {
 			t.Fatalf("failed to iterate index: %v", err)
 		}
