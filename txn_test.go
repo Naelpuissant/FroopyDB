@@ -1,16 +1,24 @@
 package froopydb_test
 
 import (
+	"strings"
 	"testing"
 
+	"froopydb/logger"
 	"froopydb/x"
 
 	"froopydb"
 )
 
 func TestTxn(t *testing.T) {
-	println("Running TestTxn")
-	db := froopydb.NewDB(froopydb.DefaultConfig(t.TempDir()))
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          t.TempDir(),
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    true,
+			LogLevel:        logger.INFO,
+		},
+	)
 	defer db.Close()
 
 	txn := db.NewTransaction()
@@ -20,35 +28,54 @@ func TestTxn(t *testing.T) {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
-	txn2 := db.NewTransaction()
-	value, found := txn2.Get(x.IntKey(1))
+	txn = db.NewTransaction()
+	value, found := txn.Get(x.IntKey(1))
 	if !found || string(value) != "hello" {
 		t.Fatalf("Expected 1 to be hello, got %s (found=%v)", string(value), found)
 	}
-	value, found = txn2.Get(x.IntKey(2))
+	value, found = txn.Get(x.IntKey(2))
 	if !found || string(value) != "world" {
 		t.Fatalf("Expected 2 to be world, got %s (found=%v)", string(value), found)
 	}
-	if err := txn2.Commit(); err != nil {
+	if err := txn.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
-	txn3 := db.NewTransaction()
-	txn3.Delete(x.IntKey(1))
-	value, found = txn3.Get(x.IntKey(1))
+	txn = db.NewTransaction()
+	txn.Delete(x.IntKey(1))
+	value, found = txn.Get(x.IntKey(1))
 	if found || len(value) != 0 {
 		t.Fatalf("Expected key to be deleted, got %s (found=%v)", string(value), found)
 	}
-	if err := txn3.Commit(); err != nil {
+	if err := txn.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
-	txn4 := db.NewTransaction()
-	value, found = txn4.Get(x.IntKey(1))
+	txn = db.NewTransaction()
+	value, found = txn.Get(x.IntKey(1))
 	if found || len(value) != 0 {
 		t.Fatalf("Expected key to be deleted, got %s (found=%v)", string(value), found)
 	}
-	if err := txn4.Commit(); err != nil {
+	if err := txn.Commit(); err != nil {
+		t.Fatalf("Failed to commit transaction: %v", err)
+	}
+
+	// Make sure to flush
+	txn = db.NewTransaction()
+	txn.Set(x.IntKey(1337), []byte("flushed"))
+	txn.Set(x.IntKey(3), []byte(strings.Repeat("a", memTableMaxSize)))
+	if err := txn.Commit(); err != nil {
+		t.Fatalf("Failed to commit transaction: %v", err)
+	}
+	db.WaitJobs()
+
+	// Get key from flushed txn
+	txn = db.NewTransaction()
+	value, found = txn.Get(x.IntKey(1337))
+	if !found || string(value) != "flushed" {
+		t.Fatalf("Expected key to be flushed, got %s (found=%v)", string(value), found)
+	}
+	if err := txn.Commit(); err != nil {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 }

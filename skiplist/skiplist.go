@@ -3,6 +3,7 @@ package skiplist
 import (
 	"bytes"
 	"errors"
+	"iter"
 	"math/rand/v2"
 	"sync"
 	"sync/atomic"
@@ -208,6 +209,18 @@ func (l *Skiplist) Keys() [][]byte {
 		curr = curr.Next()
 	}
 	return res
+}
+
+func (l *Skiplist) KVIter() iter.Seq2[[]byte, []byte] {
+	return func(yield func([]byte, []byte) bool) {
+		curr := l.First()
+		for curr != nil {
+			if !yield(curr.Key, curr.Value) {
+				return
+			}
+			curr = curr.Next()
+		}
+	}
 }
 
 // Get first element (O(1))

@@ -182,9 +182,9 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
 - [x] check concurrency safety
     - [x] Copy on Write for immutable memtables
     - [x] Copy on Write for sst store
-- [ ] Just quick check mvcc on get from sst (hell nah)
+- [x] Just quick check mvcc on get from sst (hell nah)
 - [ ] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
-    - [ ] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
+    - [x] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
 - [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)

@@ -4,6 +4,7 @@ import (
 	"froopydb/compact"
 	"froopydb/logger"
 	"froopydb/table"
+	"froopydb/x"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +21,7 @@ func TestMaybeCompact(t *testing.T) {
 	t0 := store.AddNew()
 	t0.Open()
 	t0.InitWriter()
-	t0.WriteDataBlock([]byte{1}, []byte("A"))
+	t0.WriteDataBlock(x.EncodeKey(x.IntKey(1), 0), []byte("A"))
 	idxOffset, _ := t0.WriteIndex()
 	t0.WriteMetadata(idxOffset)
 	t0.FlushWriter()
@@ -30,7 +31,7 @@ func TestMaybeCompact(t *testing.T) {
 	t1 := store.AddNew()
 	t1.Open()
 	t1.InitWriter()
-	t1.WriteDataBlock([]byte{2}, []byte("B"))
+	t1.WriteDataBlock(x.EncodeKey(x.IntKey(2), 0), []byte("B"))
 	idxOffset, _ = t1.WriteIndex()
 	t1.WriteMetadata(idxOffset)
 	t1.FlushWriter()
@@ -40,7 +41,7 @@ func TestMaybeCompact(t *testing.T) {
 	t2 := store.AddNew()
 	t2.Open()
 	t2.InitWriter()
-	t2.WriteDataBlock([]byte{3}, []byte("C"))
+	t2.WriteDataBlock(x.EncodeKey(x.IntKey(3), 0), []byte("C"))
 	idxOffset, _ = t2.WriteIndex()
 	t2.WriteMetadata(idxOffset)
 	t2.FlushWriter()
@@ -89,7 +90,7 @@ func TestMaybeCompact(t *testing.T) {
 	}
 
 	for key, expected := range tests {
-		value, found := newTable.Search([]byte{byte(key)})
+		value, found := newTable.Search(x.EncodeKey(x.IntKey(key), 0))
 		if !found || string(value) != expected {
 			t.Fatalf("expected %q, got %q for key %v", expected, value, key)
 		}

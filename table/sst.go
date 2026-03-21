@@ -2,6 +2,8 @@ package table
 
 import (
 	"fmt"
+	"froopydb/skiplist"
+	"froopydb/x"
 	"iter"
 	"os"
 	"path/filepath"
@@ -45,15 +47,11 @@ type SSTable struct {
 	incr   int
 	size   int
 
-	minKey string
-	maxKey string
-
 	file   *os.File
 	writer *SSTWriter
 	reader *SSTReader
 
-	index map[string]uint32
-	keys  []string // Sorted index keys
+	index *skiplist.Skiplist
 }
 
 func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
@@ -64,8 +62,7 @@ func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable
 		level:  level,
 		incr:   incr,
 		size:   size,
-		index:  map[string]uint32{},
-		keys:   []string{},
+		index:  skiplist.New(),
 	}
 }
 
@@ -75,23 +72,12 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
 	}
 
-	index := map[string]uint32{}
-	keys := []string{}
-	minKey := ""
-	maxKey := ""
+	index := skiplist.New()
 	for item, err := range sstReader.IndexIter() {
 		if err != nil {
 			return nil, fmt.Errorf("%w : %w", ErrSSTableIndexRecoveryFailed, err)
 		}
-		key := string(item.Key)
-		index[key] = item.Offset
-		keys = append(keys, key)
-		if minKey == "" || key < minKey {
-			minKey = key
-		}
-		if maxKey == "" || key > maxKey {
-			maxKey = key
-		}
+		index.Insert(item.Key, x.Uint32ToBytes(item.Offset))
 	}
 
 	filename := file.Name()
@@ -101,10 +87,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		level:  int(sstReader.Metadata.Level),
 		incr:   int(sstReader.Metadata.Incr),
 		name:   filename,
-		minKey: minKey,
-		maxKey: maxKey,
 		index:  index,
-		keys:   keys,
 		file:   file,
 		reader: sstReader,
 	}, nil
@@ -114,19 +97,8 @@ func (sst *SSTable) InitWriter() {
 	sst.writer = NewSSTWriter(sst.file)
 }
 
-func (sst *SSTable) setMinMaxKeys(key []byte) {
-	keyStr := string(key)
-	if sst.minKey == "" || keyStr < sst.minKey {
-		sst.minKey = keyStr
-	}
-	if sst.maxKey == "" || keyStr > sst.maxKey {
-		sst.maxKey = keyStr
-	}
-}
-
 func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 	offset := uint32(sst.writer.Pos)
-	sst.setMinMaxKeys(key)
 
 	err := sst.writer.WriteDataBlock(value)
 	if err != nil {
@@ -135,8 +107,7 @@ func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 
 	// Tombstone check
 	if len(value) != 0 && value[0] != 0x00 {
-		sst.index[string(key)] = offset
-		sst.keys = append(sst.keys, string(key))
+		sst.index.Insert(key, x.Uint32ToBytes(offset))
 	}
 
 	return nil
@@ -184,12 +155,14 @@ func (sst *SSTable) Rename(new string) {
 }
 
 func (sst *SSTable) Search(key []byte) ([]byte, bool) {
-	offset, found := sst.index[string(key)]
+	node, found := sst.index.Search(key)
 	if !found {
 		return []byte{}, false
 	}
 
-	value, err := sst.reader.ReadValueAtOffset(int64(offset))
+	value, err := sst.reader.ReadValueAtOffset(
+		int64(x.BytesToUint32(node.Value)),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -198,23 +171,18 @@ func (sst *SSTable) Search(key []byte) ([]byte, bool) {
 }
 
 func (sst *SSTable) Range(res map[string][]byte, fromKey, toKey []byte) {
-	if sst.minKey > string(toKey) || sst.maxKey < string(fromKey) {
+	if sst.MinKey() > string(toKey) || sst.MaxKey() < string(fromKey) {
 		return
 	}
 
-	for _, key := range sst.keys {
-		if key < string(fromKey) {
-			continue
-		}
-		if key > string(toKey) {
-			return
-		}
+	rng := sst.index.Range(fromKey, toKey)
 
-		value, found := sst.Search([]byte(key))
+	for _, node := range rng {
+		value, found := sst.Search(node.Key)
 		if found {
-			res[key] = value
+			res[string(node.Key)] = value
 		} else {
-			delete(res, key)
+			delete(res, string(node.Key))
 		}
 	}
 }
@@ -255,22 +223,17 @@ func (sst *SSTable) setReadOnly() error {
 	return nil
 }
 
-// Get min and max keys in the SSTable
-func (sst *SSTable) GetMinMax() (string, string) {
-	return sst.minKey, sst.maxKey
-}
-
 func (sst *SSTable) KVIter() iter.Seq2[string, []byte] {
 	return func(yield func(string, []byte) bool) {
-		for _, key := range sst.keys {
-			offset, _ := sst.index[key]
-
-			value, err := sst.reader.ReadValueAtOffset(int64(offset))
+		for key, offset := range sst.index.KVIter() {
+			value, err := sst.reader.ReadValueAtOffset(
+				int64(x.BytesToUint32(offset)),
+			)
 			if err != nil {
 				panic(err)
 			}
 
-			if !yield(key, value) {
+			if !yield(string(key), value) {
 				return
 			}
 		}
@@ -290,5 +253,13 @@ func (sst *SSTable) Name() string {
 }
 
 func (sst *SSTable) Len() int {
-	return len(sst.index)
+	return int(sst.index.Length())
+}
+
+func (sst *SSTable) MinKey() string {
+	return string(sst.index.First().Key)
+}
+
+func (sst *SSTable) MaxKey() string {
+	return string(sst.index.Last().Key)
 }

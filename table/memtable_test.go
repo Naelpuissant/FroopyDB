@@ -10,17 +10,22 @@ import (
 
 func TestFlushMemtable(t *testing.T) {
 	logger := logger.NewLogger(logger.DEBUG)
-	wal := wal.NewWAL("/tmp", false)
+	dir := t.TempDir()
+	wal := wal.NewWAL(dir, false)
 	memTable := table.NewMemTable(logger, 1337, wal)
-	memTable.Set(x.Uint32ToBytes(uint32(1)), x.StrToBytes("foo"))
-	memTable.Set(x.Uint32ToBytes(uint32(2)), x.StrToBytes("bar"))
 
-	sst := table.NewSSTable("/tmp", 0, 1, true, 0)
+	memTable.Set(x.EncodeKey(x.IntKey(1), 1), x.StrToBytes("foo"))
+	memTable.Set(x.EncodeKey(x.IntKey(2), 1), x.StrToBytes("bar"))
+
+	sst := table.NewSSTable(dir, 0, 1, true, 0)
 	sst.Open()
 	defer sst.Close()
-	memTable.Flush(sst)
+	err := memTable.Flush(sst)
+	if err != nil {
+		panic(err)
+	}
 
-	value1, _ := sst.Search(x.Uint32ToBytes(uint32(1)))
+	value1, _ := sst.Search(x.EncodeKey(x.IntKey(1), 2))
 	if string(value1) != "foo" {
 		t.Fatalf("expected 'foo', got %q", value1)
 	}

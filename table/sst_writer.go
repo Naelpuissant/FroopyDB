@@ -2,6 +2,7 @@ package table
 
 import (
 	"bufio"
+	"froopydb/skiplist"
 	"froopydb/x"
 	"io"
 	"os"
@@ -43,8 +44,8 @@ func (w *SSTWriter) WriteDataBlock(value []byte) error {
 }
 
 // WriteIndex writes the index map to the SSTable
-func (w *SSTWriter) WriteIndex(index map[string]uint32) error {
-	for key, offset := range index {
+func (w *SSTWriter) WriteIndex(index *skiplist.Skiplist) error {
+	for key, offset := range index.KVIter() {
 		klen := uint16(len(key))
 		klenBytes := x.Uint16ToBytes(klen)
 		_, err := w.writer.Write(klenBytes)
@@ -55,7 +56,7 @@ func (w *SSTWriter) WriteIndex(index map[string]uint32) error {
 		if err != nil {
 			return err
 		}
-		_, err = w.writer.Write(x.Uint32ToBytes(offset))
+		_, err = w.writer.Write(offset)
 		if err != nil {
 			return err
 		}
