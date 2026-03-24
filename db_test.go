@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	fpdb "froopydb"
+	"froopydb"
 	"froopydb/logger"
 	"froopydb/x"
 )
 
-var memTableMaxSize = fpdb.KB
+var memTableMaxSize = froopydb.KB
 
 func TestGetSet(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(&fpdb.DBConfig{
+	db := froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          dir,
 		MemTableMaxSize: memTableMaxSize,
 		ClearOnStart:    true,
@@ -42,7 +42,7 @@ func TestGetMultipleSegments(t *testing.T) {
 	dir := t.TempDir()
 	dir = filepath.Dir(dir)
 
-	db := fpdb.NewDB(&fpdb.DBConfig{
+	db := froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          dir,
 		MemTableMaxSize: memTableMaxSize,
 		ClearOnStart:    true,
@@ -71,7 +71,7 @@ func TestGetMultipleSegments(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(&fpdb.DBConfig{
+	db := froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          dir,
 		MemTableMaxSize: memTableMaxSize,
 		ClearOnStart:    true,
@@ -90,7 +90,7 @@ func TestDelete(t *testing.T) {
 
 func TestRange(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(&fpdb.DBConfig{
+	db := froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          dir,
 		MemTableMaxSize: 128,
 		ClearOnStart:    true,
@@ -151,7 +151,7 @@ func TestRange(t *testing.T) {
 
 func TestCompactAndMerge(t *testing.T) {
 	dir := t.TempDir()
-	db := fpdb.NewDB(&fpdb.DBConfig{
+	db := froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          dir,
 		MemTableMaxSize: 100,
 		ClearOnStart:    true,
@@ -191,27 +191,51 @@ func TestCompactAndMerge(t *testing.T) {
 	}
 }
 
-func BenchmarkSet(b *testing.B) {
+func BenchmarkDBSet(b *testing.B) {
 	dir := b.TempDir()
-	db := fpdb.NewDB(fpdb.DefaultConfig(dir))
+	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          dir,
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    true,
+			LogLevel:        logger.INFO,
+		},
+	)
 	defer db.Close()
 
-	for b.Loop() {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		db.Set(x.EncodeKey([]byte(strconv.Itoa(b.N)), 0), []byte("load"))
 	}
+	b.StopTimer()
+	db.WaitJobs()
 }
 
-func BenchmarkGet(b *testing.B) {
+func BenchmarkDBGet(b *testing.B) {
 	dir := b.TempDir()
-	db := fpdb.NewDB(fpdb.DefaultConfig(dir))
+	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          dir,
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    true,
+			LogLevel:        logger.INFO,
+		},
+	)
 	defer db.Close()
 
 	// Populate the database
 	for i := 0; i < b.N; i++ {
 		db.Set(x.EncodeKey([]byte(strconv.Itoa(i)), 0), []byte("load"))
 	}
+	db.WaitJobs()
 
-	for b.Loop() {
-		db.Get(x.EncodeKey([]byte(strconv.Itoa(b.N)), 0))
+	println("sstables", db.Metrics().NumSSTables)
+	println("flush", db.Metrics().PendingFlush)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		db.Get(x.EncodeKey([]byte(strconv.Itoa(i)), 0))
 	}
+	b.StopTimer()
 }

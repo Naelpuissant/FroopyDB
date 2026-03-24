@@ -95,6 +95,7 @@ MVCC transactions, inside the hood, the key is set with the commit ts.
 
 ## Bench
 
+
 pure file (seq read) bench
 ```
 goos: linux
@@ -106,7 +107,6 @@ BenchmarkGet-8             10000           2001152 ns/op
 PASS
 ok      froopydb/src    22.340s
 ```
-
 
 
 LSM tree based, skiplist memtable (1000B), wal, no compaction/no bloom filters/no parallel jobs (100 000 ops)
@@ -125,7 +125,6 @@ ok      froopydb/src    5.027s
 Since everything is done on a single thread we might have some heavy spikes on set when memtable is flushed
 
 
-
 Same config as before but with concurrent MemTable flush
 ```
 goos: linux
@@ -140,9 +139,56 @@ PASS
 ok      froopydb/src    1.935s
 ```
 It's getting really interresting, lets add compaction concurrency.
-
-
 From my last benchs, I'm quite happy. Big improvements might come from a new skiplist implementation.
+
+
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8          100000              7518 ns/op
+BenchmarkDBGet
+sstables 0
+flush 0
+BenchmarkDBGet-8          100000               987.7 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8         100000              6409 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8         100000              1088 ns/op
+PASS
+ok      froopydb        3.167s
+```
+Looks like we have really good improvements for DB Set, probably because of the new mutex free approach. Get has been increased, a cost due to the version checking (additionnal byte compare). 
+
+
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8          100000              5208 ns/op
+BenchmarkDBGet
+sstables 0
+flush 0
+sstables 1657
+flush 0
+BenchmarkDBGet-8          100000            263018 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8         100000              6031 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8         100000            670640 ns/op
+PASS
+ok      froopydb        97.306s
+```
+Something interesting to notice is that the Get doesn't scale well (good point that Set is stable btw), I find that when lowering the `MemTableMaxSize` (here to one KB) I got pretty bad performances, this is due to a higher number of sst. Now that I use skiplist as inmemory index cache, going for a specific key leads to a bad `O(t*n*log(n))` where t is the number of tables. Going back to a hashmap is not viable, it will leads to poor performance for version checking and it doesn't solve the actual high memory usage. A more viable solution would be to go deeper into "DB systems classics" by :
+- adding a bloomfilter will drastically reduce the number sst lookups (t)
+- removing skiplist inmemory index
+- implementing a fast sst search (bisect)
+- adding a lrucache (block cache)
+
 
 ## TODO
 
@@ -183,24 +229,29 @@ From my last benchs, I'm quite happy. Big improvements might come from a new ski
     - [x] Copy on Write for immutable memtables
     - [x] Copy on Write for sst store
 - [x] Just quick check mvcc on get from sst (hell nah)
-- [ ] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
+- [x] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
     - [x] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
-- [ ] Bloom filter -> Should I still use in memory index or drop it to save memory ?
+- [ ] Search massive rework (objective back to 1000ns/op)
+    - [ ] Bloom filter
+    - [ ] bisect sst scan and remove skiplist inmemory index
+    - [ ] perf check
+    - [ ] lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
+- [ ] fix CI
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)
 - [ ] Clear db metrics
-- [ ] Fix and update benchs
+- [x] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
+- [ ] DB iter (list all)
 - [ ] Add Range query to txn
 - [ ] arena skiplist with cas instead of mutex lock
-- [ ] sst compression
-- [ ] Improve WAL (batch write...)
+- [ ] Improve WAL (batch write, checksum...)
+- [ ] sst compression (bring back level compression)
 - [ ] Allow transactionless operations (no conflict checking)
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db, int db should benefit from skiplist faster compare)
-- [ ] Study MMap potential use and benefits
-- [ ] add caching
-- [ ] Improve compaction perfs (minimal cpu usage)
+- [ ] Study MMap potential uses and benefits
+- [ ] Improve compaction perfs (minimal cpu usage, study gc algorithms)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
     - [ ] Test concurent queries

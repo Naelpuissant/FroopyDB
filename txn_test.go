@@ -127,3 +127,59 @@ func TestTxnGetConflict(t *testing.T) {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 }
+
+func BenchmarkTxnSet(b *testing.B) {
+	dir := b.TempDir()
+	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          dir,
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    true,
+			LogLevel:        logger.INFO,
+		},
+	)
+	defer db.Close()
+
+	b.ResetTimer()
+	txn := db.NewTransaction()
+	for i := 0; i < b.N; i++ {
+		txn.Set(x.IntKey(i), []byte("load"))
+		if i%1000 == 0 {
+			txn.Commit()
+			txn = db.NewTransaction()
+		}
+	}
+	b.StopTimer()
+}
+
+func BenchmarkTxnGet(b *testing.B) {
+	dir := b.TempDir()
+	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          dir,
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    true,
+			LogLevel:        logger.INFO,
+		},
+	)
+	defer db.Close()
+
+	txn := db.NewTransaction()
+
+	// Populate the database
+	for i := 0; i < b.N; i++ {
+		txn.Set(x.IntKey(i), []byte("load"))
+	}
+	txn.Commit()
+	// db.WaitJobs()
+
+	b.ResetTimer()
+	txn = db.NewTransaction()
+	for i := 0; i < b.N; i++ {
+		txn.Get(x.IntKey(i))
+	}
+	txn.Commit()
+	b.StopTimer()
+}

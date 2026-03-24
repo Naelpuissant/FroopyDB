@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"froopydb/logger"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,9 +14,9 @@ import (
 func TestSetGetHandlers(t *testing.T) {
 	db = froopydb.NewDB(&froopydb.DBConfig{
 		Folder:          t.TempDir(),
-		MemTableMaxSize: 0,
+		MemTableMaxSize: froopydb.MB,
 		ClearOnStart:    false,
-		LogLevel:        1,
+		LogLevel:        logger.INFO,
 	})
 	defer db.Close()
 
@@ -49,31 +49,5 @@ func TestSetGetHandlers(t *testing.T) {
 	}
 	if out["value"] != "bar" {
 		t.Fatalf("getHandler value = %q; want %q", out["value"], "bar")
-	}
-}
-
-func BenchmarkGetSetEndpoints(b *testing.B) {
-	db = froopydb.NewDB(&froopydb.DBConfig{
-		Folder:          b.TempDir(),
-		MemTableMaxSize: 0,
-		ClearOnStart:    false,
-		LogLevel:        1,
-	})
-	defer db.Close()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		key := fmt.Sprintf("k%d", i)
-		// set
-		body, _ := json.Marshal(map[string]string{"key": key, "value": "v"})
-		req := httptest.NewRequest("POST", "/set", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-		setHandler(rr, req)
-
-		// get
-		req = httptest.NewRequest("GET", "/get?key="+key, nil)
-		rr = httptest.NewRecorder()
-		getHandler(rr, req)
 	}
 }
