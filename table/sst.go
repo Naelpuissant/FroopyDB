@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"froopydb/bloom"
 	"froopydb/skiplist"
 	"froopydb/x"
 	"iter"
@@ -18,17 +19,21 @@ var (
 	KLEN_SIZE   = 2
 	OFFSET_SIZE = 4
 
-	//Metadata
+	// Dynamic sized bloom filter between Index and Metadata
+
+	// Metadata
 	LEVEL_SIZE      = 2
 	INCR_SIZE       = 2
 	IDX_OFFSET_SIZE = 4
-	METADATA_SIZE   = LEVEL_SIZE + INCR_SIZE + IDX_OFFSET_SIZE
+	BF_OFFSET_SIZE  = 4
+	METADATA_SIZE   = LEVEL_SIZE + INCR_SIZE + IDX_OFFSET_SIZE + BF_OFFSET_SIZE
 )
 
 type SSTMetadata struct {
 	Level     uint16
 	Incr      uint16
 	IdxOffset uint32
+	BfOffset  uint32
 }
 
 func newSSTableName(folder string, level int, incr int, tmp bool) string {
@@ -52,6 +57,7 @@ type SSTable struct {
 	reader *SSTReader
 
 	index *skiplist.Skiplist
+	bf    *bloom.BloomFilter
 }
 
 func NewSSTable(folder string, level int, incr int, tmp bool, size int) *SSTable {
@@ -79,6 +85,8 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		}
 		index.Insert(item.Key, x.Uint32ToBytes(item.Offset))
 	}
+	bfBytes := sstReader.ReadBloomFilter()
+	bf := bloom.FromBytes(bfBytes)
 
 	filename := file.Name()
 	return &SSTable{
@@ -87,6 +95,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		level:  int(sstReader.Metadata.Level),
 		incr:   int(sstReader.Metadata.Incr),
 		name:   filename,
+		bf:     bf,
 		index:  index,
 		file:   file,
 		reader: sstReader,
@@ -97,6 +106,8 @@ func (sst *SSTable) InitWriter() {
 	sst.writer = NewSSTWriter(sst.file)
 }
 
+// WriteDataBlock writes value byte array,
+// add key and offset to the index
 func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 	offset := uint32(sst.writer.Pos)
 
@@ -113,18 +124,37 @@ func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 	return nil
 }
 
-// WriteIndex writes the index map to the SSTable and returns the offset where it was written.
+// WriteIndex writes the index map to the SSTable,
+// create bloom filter with ideal size and fill it.
+// Returns the offset where it was written.
 func (sst *SSTable) WriteIndex() (uint32, error) {
 	indexOffset := uint32(sst.writer.Pos)
-	err := sst.writer.WriteIndex(sst.index)
+
+	sst.bf = bloom.New(0.1, int(sst.index.Length()))
+
+	err := sst.writer.WriteIndex(sst.index, sst.bf)
 	if err != nil {
 		return 0, err
 	}
+
 	return indexOffset, nil
 }
 
-func (sst *SSTable) WriteMetadata(indexOffset uint32) error {
-	return sst.writer.WriteMetadata(uint16(sst.level), uint16(sst.incr), indexOffset)
+func (sst *SSTable) WriteBloomFilter() (uint32, error) {
+	bfOffset := uint32(sst.writer.Pos)
+
+	err := sst.writer.WriteBloomFilter(sst.bf)
+	if err != nil {
+		return 0, err
+	}
+
+	return bfOffset, nil
+}
+
+func (sst *SSTable) WriteMetadata(idxOffset uint32, bfOffset uint32) error {
+	return sst.writer.WriteMetadata(
+		uint16(sst.level), uint16(sst.incr), idxOffset, bfOffset,
+	)
 }
 
 func (sst *SSTable) FlushWriter() error {

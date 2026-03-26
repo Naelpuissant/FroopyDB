@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"crypto/sha1"
 	"encoding/binary"
 	"errors"
 	"hash"
@@ -9,15 +10,17 @@ import (
 
 var (
 	ErrWrongFalsePositive = errors.New("falsePositive should be between 0 and 1")
-	ErrWrongNItems        = errors.New("nItems should be greater than one")
+	ErrWrongNItems        = errors.New("nItems should be greater than zero")
+	ErrIsImmutable        = errors.New("Can't modify immutable bloom filter")
 )
 
 type BloomFilter struct {
-	bitmap    *BitMap
-	nbits     int
-	nhashes   int
-	newHash   func() hash.Hash
-	digestBuf [16]byte
+	bitmap      *BitMap
+	nbits       int
+	nhashes     int
+	newHash     func() hash.Hash
+	digestBuf   [16]byte
+	isImmutable bool
 }
 
 func getNBits(falsePositive float64, nItems float64) int {
@@ -36,12 +39,12 @@ func getNHashes(nbits float64, nItems float64) int {
 
 // Create a new BloomFilter newHash should return your hash function,
 // please use a fast, non-cryptographic one
-func New(falsePositive float64, nItems int, newHash func() hash.Hash) *BloomFilter {
+func New(falsePositive float64, nItems int) *BloomFilter {
 	if falsePositive <= 0 || falsePositive >= 1 {
 		panic(ErrWrongFalsePositive)
 	}
 
-	if nItems <= 1 {
+	if nItems <= 0 {
 		panic(ErrWrongNItems)
 	}
 
@@ -54,14 +57,31 @@ func New(falsePositive float64, nItems int, newHash func() hash.Hash) *BloomFilt
 	}
 
 	return &BloomFilter{
-		bitmap:  bitmap,
-		nbits:   nbits,
-		nhashes: int(nhashes),
-		newHash: newHash,
+		bitmap:      bitmap,
+		nbits:       nbits,
+		nhashes:     int(nhashes),
+		newHash:     func() hash.Hash { return sha1.New() }, // TODO: use fast non-cryptographic hash
+		isImmutable: false,
+	}
+}
+
+func FromBytes(b []byte) *BloomFilter {
+	bitmap, err := NewBitmapFromBytes(b)
+	if err != nil {
+		panic(err)
+	}
+	return &BloomFilter{
+		bitmap:      bitmap,
+		newHash:     func() hash.Hash { return sha1.New() },
+		isImmutable: true,
 	}
 }
 
 func (bf *BloomFilter) Add(key []byte) {
+	if bf.isImmutable {
+		panic(ErrIsImmutable)
+	}
+
 	hash := bf.newHash()
 	digestBuf := [16]byte{}
 
@@ -100,3 +120,7 @@ func (bf *BloomFilter) Contains(key []byte) bool {
 
 	return true
 }
+
+func (bf *BloomFilter) Bytes() []byte { return bf.bitmap.Bytes() }
+
+func (bf *BloomFilter) Size() int { return bf.bitmap.Size() }

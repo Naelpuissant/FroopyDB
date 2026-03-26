@@ -88,12 +88,17 @@ func (m *MemTable) Flush(sst *SSTable) error {
 		}
 	}
 
-	indexOffset, err := sst.WriteIndex()
+	idxOffset, err := sst.WriteIndex()
 	if err != nil {
 		return err
 	}
 
-	err = sst.WriteMetadata(indexOffset)
+	bfOffset, err := sst.WriteBloomFilter()
+	if err != nil {
+		return err
+	}
+
+	err = sst.WriteMetadata(idxOffset, bfOffset)
 	if err != nil {
 		return err
 	}

@@ -3,28 +3,38 @@ package main
 import (
 	"flag"
 	"froopydb"
+	"froopydb/logger"
 )
 
 func main() {
 	folder := flag.String("folder", "./.froopydb", "folder path for the database")
 	flag.Parse()
 
-	db := froopydb.NewDB(froopydb.DefaultConfig(*folder))
+	db := froopydb.NewDB(&froopydb.DBConfig{
+		Folder:          *folder,
+		MemTableMaxSize: froopydb.KB,
+		ClearOnStart:    false,
+		LogLevel:        logger.DEBUG,
+	})
 	defer db.Close()
 
-	println("====GET====")
-	db.Set([]byte{1}, []byte("foo"))
-	println(db.Get([]byte{1}))
+	txn := db.NewTransaction()
 
-	db.Set([]byte{1}, []byte("bar"))
-	println(db.Get([]byte{1}))
+	println("====GET====")
+	txn.Set([]byte{1}, []byte("foo"))
+	println(txn.Get([]byte{1}))
+
+	txn.Set([]byte{1}, []byte("bar"))
+	println(txn.Get([]byte{1}))
 	for i := range 100 {
-		db.Set([]byte{byte(i + 2)}, []byte("spam"))
+		txn.Set([]byte{byte(i + 2)}, []byte("spam"))
 	}
 
 	println("====DELETE====")
-	db.Delete([]byte{12})
+	txn.Delete([]byte{12})
 
-	println("====GET====" )
-	println(db.Get([]byte{12}))
+	println("====GET====")
+	println(txn.Get([]byte{12}))
+
+	txn.Commit()
 }

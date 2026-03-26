@@ -231,8 +231,6 @@ func BenchmarkDBGet(b *testing.B) {
 	}
 	db.WaitJobs()
 
-	println("sstables", db.Metrics().NumSSTables)
-	println("flush", db.Metrics().PendingFlush)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		db.Get(x.EncodeKey([]byte(strconv.Itoa(i)), 0))

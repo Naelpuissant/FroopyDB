@@ -24,8 +24,11 @@ func TestSSTableReaderIndex(t *testing.T) {
 	if sstReader.Metadata.Incr != 0 {
 		t.Fatalf("expected incr 0, got %d", sstReader.Metadata.Incr)
 	}
-	if sstReader.Metadata.IdxOffset != 299 {
-		t.Fatalf("expected idx offset 299, got %d", sstReader.Metadata.IdxOffset)
+	if sstReader.Metadata.IdxOffset != 465 {
+		t.Fatalf("expected idx offset 465, got %d", sstReader.Metadata.IdxOffset)
+	}
+	if sstReader.Metadata.BfOffset != 1620 {
+		t.Fatalf("expected idx offset 1620, got %d", sstReader.Metadata.BfOffset)
 	}
 
 	for item, err := range sstReader.IndexIter() {

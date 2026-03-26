@@ -16,6 +16,12 @@ func Uint32ToBytes(i uint32) []byte {
 	return buf
 }
 
+func Uint64ToBytes(i uint64) []byte {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, i)
+	return buf
+}
+
 func StrToBytes(s string) []byte {
 	return []byte(s)
 }
@@ -26,6 +32,10 @@ func BytesToUint16(b []byte) uint16 {
 
 func BytesToUint32(b []byte) uint32 {
 	return binary.LittleEndian.Uint32(b)
+}
+
+func BytesToUint64(b []byte) uint64 {
+	return binary.LittleEndian.Uint64(b)
 }
 
 func IntKey(i int) []byte {

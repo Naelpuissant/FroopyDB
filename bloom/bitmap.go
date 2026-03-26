@@ -1,8 +1,10 @@
 package bloom
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"froopydb/x"
 	"strings"
 )
 
@@ -12,7 +14,7 @@ func uint64ToStr(i uint64) string {
 
 var (
 	ErrWrongBitMapIndex = errors.New("Wrong BitMap index")
-	ErrWrongBitMapSize  = errors.New("BitMap size should be a multiple of 64")
+	ErrWrongBitMapSize  = errors.New("BitMap size should be a multiple of 64 bits")
 )
 
 type BitMap struct {
@@ -25,6 +27,20 @@ func NewBitmap(size int) (*BitMap, error) {
 	}
 	blocs := size / 64
 	return &BitMap{m: make([]uint64, blocs)}, nil
+}
+
+func NewBitmapFromBytes(b []byte) (*BitMap, error) {
+	if len(b)%8 != 0 {
+		return nil, ErrWrongBitMapSize
+	}
+
+	m := make([]uint64, len(b)/8)
+	for i := 0; i < len(b)-1; i += 8 {
+		bloc := x.BytesToUint64(b[i : i+8])
+		m = append(m, bloc)
+	}
+
+	return &BitMap{m: m}, nil
 }
 
 func (b *BitMap) getBlocForIndex(i int) (int, error) {
@@ -60,6 +76,14 @@ func (b *BitMap) IsSet(i int) bool {
 	}
 
 	return true
+}
+
+func (b *BitMap) Bytes() []byte {
+	var buf bytes.Buffer
+	for i := len(b.m) - 1; i >= 0; i-- {
+		buf.Write(x.Uint64ToBytes(b.m[i]))
+	}
+	return buf.Bytes()
 }
 
 func (b *BitMap) String() string {

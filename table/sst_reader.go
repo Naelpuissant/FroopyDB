@@ -38,18 +38,39 @@ func (r *SSTReader) SetMetadata() {
 
 	level := x.BytesToUint16(metadataBytes[0:LEVEL_SIZE])
 	incr := x.BytesToUint16(metadataBytes[LEVEL_SIZE : LEVEL_SIZE+INCR_SIZE])
-	idxOffset := x.BytesToUint32(metadataBytes[LEVEL_SIZE+INCR_SIZE : METADATA_SIZE])
+
+	idxOffset := x.BytesToUint32(
+		metadataBytes[LEVEL_SIZE+INCR_SIZE : METADATA_SIZE-BF_OFFSET_SIZE],
+	)
+	bfOffset := x.BytesToUint32(
+		metadataBytes[LEVEL_SIZE+INCR_SIZE+IDX_OFFSET_SIZE : METADATA_SIZE],
+	)
 
 	r.Metadata = &SSTMetadata{
 		Level:     level,
 		Incr:      incr,
 		IdxOffset: idxOffset,
+		BfOffset:  bfOffset,
 	}
+}
+
+func (r SSTReader) ReadBloomFilter() []byte {
+	end := r.fsize - int64(METADATA_SIZE)
+	start := int64(r.Metadata.BfOffset)
+	size := end - start
+
+	b := make([]byte, size)
+	_, err := r.file.ReadAt(b, start)
+	if err != nil {
+		panic(err)
+	}
+
+	return b
 }
 
 func (r *SSTReader) IndexIter() iter.Seq2[*IdxItem, error] {
 	return func(yield func(*IdxItem, error) bool) {
-		endIdxOffset := r.fsize - int64(METADATA_SIZE)
+		endIdxOffset := int64(r.Metadata.BfOffset)
 		curr := int64(r.Metadata.IdxOffset)
 
 		for curr < endIdxOffset {

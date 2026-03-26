@@ -233,13 +233,16 @@ Something interesting to notice is that the Get doesn't scale well (good point t
     - [x] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
 - [ ] Search massive rework (objective back to 1000ns/op)
     - [ ] Bloom filter
-    - [ ] bisect sst scan and remove skiplist inmemory index
-    - [ ] perf check
-    - [ ] lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
-- [ ] fix CI
+      - [x] Create bloom filter
+      - [x] Bloom filter persist/retrieve
+      - [ ] Use bloom filter before sst search  
+    - [ ] Bisect sst scan and remove skiplist inmemory index
+    - [ ] Perf check
+    - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
+- [ ] Fix CI
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)
-- [ ] Clear db metrics
+- [ ] Clear db metrics and start monitoring
 - [x] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
