@@ -34,7 +34,7 @@ func NewBitmapFromBytes(b []byte) (*BitMap, error) {
 		return nil, ErrWrongBitMapSize
 	}
 
-	m := make([]uint64, len(b)/8)
+	m := make([]uint64, 0, len(b)/8)
 	for i := 0; i < len(b)-1; i += 8 {
 		bloc := x.BytesToUint64(b[i : i+8])
 		m = append(m, bloc)
@@ -80,7 +80,7 @@ func (b *BitMap) IsSet(i int) bool {
 
 func (b *BitMap) Bytes() []byte {
 	var buf bytes.Buffer
-	for i := len(b.m) - 1; i >= 0; i-- {
+	for i := 0; i < len(b.m); i++ {
 		buf.Write(x.Uint64ToBytes(b.m[i]))
 	}
 	return buf.Bytes()

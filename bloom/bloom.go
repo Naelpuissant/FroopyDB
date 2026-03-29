@@ -1,25 +1,22 @@
 package bloom
 
 import (
-	"crypto/sha1"
 	"encoding/binary"
 	"errors"
-	"hash"
 	"math"
 )
 
 var (
 	ErrWrongFalsePositive = errors.New("falsePositive should be between 0 and 1")
 	ErrWrongNItems        = errors.New("nItems should be greater than zero")
-	ErrIsImmutable        = errors.New("Can't modify immutable bloom filter")
+	ErrIsImmutable        = errors.New("can't modify immutable bloom filter")
 )
 
 type BloomFilter struct {
 	bitmap      *BitMap
 	nbits       int
 	nhashes     int
-	newHash     func() hash.Hash
-	digestBuf   [16]byte
+	digestBuf   [4]byte
 	isImmutable bool
 }
 
@@ -37,8 +34,7 @@ func getNHashes(nbits float64, nItems float64) int {
 	return int(math.Ceil(nhashes))
 }
 
-// Create a new BloomFilter newHash should return your hash function,
-// please use a fast, non-cryptographic one
+// Create a new BloomFilte
 func New(falsePositive float64, nItems int) *BloomFilter {
 	if falsePositive <= 0 || falsePositive >= 1 {
 		panic(ErrWrongFalsePositive)
@@ -60,19 +56,20 @@ func New(falsePositive float64, nItems int) *BloomFilter {
 		bitmap:      bitmap,
 		nbits:       nbits,
 		nhashes:     int(nhashes),
-		newHash:     func() hash.Hash { return sha1.New() }, // TODO: use fast non-cryptographic hash
 		isImmutable: false,
 	}
 }
 
-func FromBytes(b []byte) *BloomFilter {
+func FromBytes(b []byte, nItems int) *BloomFilter {
 	bitmap, err := NewBitmapFromBytes(b)
 	if err != nil {
 		panic(err)
 	}
+	nhashes := getNHashes(float64(bitmap.Size()), float64(nItems))
 	return &BloomFilter{
 		bitmap:      bitmap,
-		newHash:     func() hash.Hash { return sha1.New() },
+		nbits:       bitmap.Size(),
+		nhashes:     nhashes,
 		isImmutable: true,
 	}
 }
@@ -82,37 +79,32 @@ func (bf *BloomFilter) Add(key []byte) {
 		panic(ErrIsImmutable)
 	}
 
-	hash := bf.newHash()
-	digestBuf := [16]byte{}
+	digest := binary.BigEndian.AppendUint32(bf.digestBuf[:0], Hash(key))
 
-	hash.Write(key)
-	digest := hash.Sum(digestBuf[:])
-
-	h1 := binary.BigEndian.Uint64(digest[:8])
-	h2 := binary.BigEndian.Uint64(digest[8:16])
+	h1 := binary.BigEndian.Uint16(digest[:2])
+	h2 := binary.BigEndian.Uint16(digest[2:4])
 	h2 |= 1 // avoid 0 h2
 
-	nbits := uint64(bf.nbits)
+	nbits := uint16(bf.nbits)
 	for i := range bf.nhashes {
-		idx := (h1 + uint64(i)*h2) % nbits
+		idx := (h1 + uint16(i)*h2) % nbits
 		bf.bitmap.Set(int(idx))
 	}
 }
 
+// Contains returns :
+// true if a key is "maybe" in the bloom filter,
+// false if a key is not the bloom filter
 func (bf *BloomFilter) Contains(key []byte) bool {
-	hash := bf.newHash()
-	digestBuf := [16]byte{}
+	digest := binary.BigEndian.AppendUint32(bf.digestBuf[:0], Hash(key))
 
-	hash.Write(key)
-	digest := hash.Sum(digestBuf[:])
-
-	h1 := binary.BigEndian.Uint64(digest[:8])
-	h2 := binary.BigEndian.Uint64(digest[8:16])
+	h1 := binary.BigEndian.Uint16(digest[:2])
+	h2 := binary.BigEndian.Uint16(digest[2:4])
 	h2 |= 1 // avoid 0 h2
 
-	nbits := uint64(bf.nbits)
+	nbits := uint16(bf.nbits)
 	for i := range bf.nhashes {
-		idx := (h1 + uint64(i)*h2) % nbits
+		idx := (h1 + uint16(i)*h2) % nbits
 		if !bf.bitmap.IsSet(int(idx)) {
 			return false
 		}
@@ -122,5 +114,7 @@ func (bf *BloomFilter) Contains(key []byte) bool {
 }
 
 func (bf *BloomFilter) Bytes() []byte { return bf.bitmap.Bytes() }
+
+func (bf *BloomFilter) String() string { return bf.bitmap.String() }
 
 func (bf *BloomFilter) Size() int { return bf.bitmap.Size() }

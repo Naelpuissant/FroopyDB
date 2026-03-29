@@ -86,7 +86,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 		index.Insert(item.Key, x.Uint32ToBytes(item.Offset))
 	}
 	bfBytes := sstReader.ReadBloomFilter()
-	bf := bloom.FromBytes(bfBytes)
+	bf := bloom.FromBytes(bfBytes, int(index.Length()))
 
 	filename := file.Name()
 	return &SSTable{
@@ -185,6 +185,11 @@ func (sst *SSTable) Rename(new string) {
 }
 
 func (sst *SSTable) Search(key []byte) ([]byte, bool) {
+	plainKey, _ := x.DecodeKey(key) // Get key without ts
+	if !sst.bf.Contains(plainKey) {
+		return []byte{}, false
+	}
+
 	node, found := sst.index.Search(key)
 	if !found {
 		return []byte{}, false

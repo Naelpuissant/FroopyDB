@@ -48,7 +48,9 @@ func (w *SSTWriter) WriteDataBlock(value []byte) error {
 // and set bloom filter key
 func (w *SSTWriter) WriteIndex(index *skiplist.Skiplist, bf *bloom.BloomFilter) error {
 	for key, offset := range index.KVIter() {
-		bf.Add(key)
+		plainKey, _ := x.DecodeKey(key) // add key without ts
+		bf.Add(plainKey)
+
 		klen := uint16(len(key))
 		klenBytes := x.Uint16ToBytes(klen)
 		_, err := w.writer.Write(klenBytes)
