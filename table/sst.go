@@ -130,7 +130,7 @@ func (sst *SSTable) WriteDataBlock(key, value []byte) error {
 func (sst *SSTable) WriteIndex() (uint32, error) {
 	indexOffset := uint32(sst.writer.Pos)
 
-	sst.bf = bloom.New(0.1, int(sst.index.Length()))
+	sst.bf = bloom.New(0.01, int(sst.index.Length()))
 
 	err := sst.writer.WriteIndex(sst.index, sst.bf)
 	if err != nil {
