@@ -190,6 +190,24 @@ Something interesting to notice is that the Get doesn't scale well (good point t
 - adding a lrucache (block cache)
 
 
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8          100000              4205 ns/op
+BenchmarkDBGet
+BenchmarkDBGet-8          100000             71323 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8         100000              6083 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8         100000            142439 ns/op
+PASS
+ok      froopydb        23.963s
+```
+With the combo skiplist and bloom filter we clearly improved. Note that we have a 1024 byte memtable right now, with a more realistic size we should be way better (with 10MB/5s bench we are arround 4000ns/op for DB and 5k for get and 8k for write on Txn)
+
 ## TODO
 
 - [x] MemTable/log (skiplist)
@@ -232,10 +250,10 @@ Something interesting to notice is that the Get doesn't scale well (good point t
 - [x] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
     - [x] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
 - [ ] Search massive rework (objective back to 1000ns/op)
-    - [ ] Bloom filter
+    - [x] Bloom filter
       - [x] Create bloom filter
       - [x] Bloom filter persist/retrieve
-      - [ ] Use bloom filter before sst search  
+      - [x] Use bloom filter before sst search  
     - [ ] Bisect sst scan and remove skiplist inmemory index
     - [ ] Perf check
     - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
