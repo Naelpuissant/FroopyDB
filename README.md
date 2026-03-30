@@ -254,6 +254,7 @@ With the combo skiplist and bloom filter we clearly improved. Note that we have 
       - [x] Create bloom filter
       - [x] Bloom filter persist/retrieve
       - [x] Use bloom filter before sst search  
+    - [x] Check if key between sst min/max
     - [ ] Bisect sst scan and remove skiplist inmemory index
     - [ ] Perf check
     - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)

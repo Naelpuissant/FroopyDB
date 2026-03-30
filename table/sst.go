@@ -1,6 +1,7 @@
 package table
 
 import (
+	"bytes"
 	"fmt"
 	"froopydb/bloom"
 	"froopydb/skiplist"
@@ -51,6 +52,8 @@ type SSTable struct {
 	level  int
 	incr   int
 	size   int
+	minKey []byte
+	maxKey []byte
 
 	file   *os.File
 	writer *SSTWriter
@@ -185,7 +188,20 @@ func (sst *SSTable) Rename(new string) {
 }
 
 func (sst *SSTable) Search(key []byte) ([]byte, bool) {
-	plainKey, _ := x.DecodeKey(key) // Get key without ts
+	plainKey, ts := x.DecodeKey(key)
+
+	minKey := sst.MinKey()[:len(sst.MinKey())-8]
+	minkeyTs := x.BytesToUint64(sst.MinKey()[len(sst.MinKey())-8:])
+	if bytes.Compare(plainKey, minKey) < 0 && ts < minkeyTs {
+		return []byte{}, false
+	}
+
+	maxKey := sst.MaxKey()[:len(sst.MaxKey())-8]
+	maxkeyTs := x.BytesToUint64(sst.MaxKey()[len(sst.MaxKey())-8:])
+	if bytes.Compare(plainKey, maxKey) > 0 && ts > maxkeyTs {
+		return []byte{}, false
+	}
+
 	if !sst.bf.Contains(plainKey) {
 		return []byte{}, false
 	}
@@ -206,7 +222,7 @@ func (sst *SSTable) Search(key []byte) ([]byte, bool) {
 }
 
 func (sst *SSTable) Range(res map[string][]byte, fromKey, toKey []byte) {
-	if sst.MinKey() > string(toKey) || sst.MaxKey() < string(fromKey) {
+	if string(sst.MinKey()) > string(toKey) || string(sst.MaxKey()) < string(fromKey) {
 		return
 	}
 
@@ -223,6 +239,8 @@ func (sst *SSTable) Range(res map[string][]byte, fromKey, toKey []byte) {
 }
 
 func (sst *SSTable) Ready() error {
+	sst.minKey = sst.index.First().Key
+	sst.maxKey = sst.index.Last().Key
 	oldName := sst.name
 
 	sst.name = strings.TrimSuffix(sst.name, ".tmp")
@@ -275,26 +293,24 @@ func (sst *SSTable) KVIter() iter.Seq2[string, []byte] {
 	}
 }
 
-func (sst *SSTable) Folder() string {
-	return sst.folder
+func (sst *SSTable) MaxKey() []byte {
+	if sst.maxKey != nil {
+		return sst.maxKey
+	}
+	return sst.index.Last().Key
 }
 
-func (sst *SSTable) Incr() int {
-	return sst.incr
-}
+func (sst *SSTable) Folder() string { return sst.folder }
 
-func (sst *SSTable) Name() string {
-	return sst.name
-}
+func (sst *SSTable) Incr() int { return sst.incr }
 
-func (sst *SSTable) Len() int {
-	return int(sst.index.Length())
-}
+func (sst *SSTable) Name() string { return sst.name }
 
-func (sst *SSTable) MinKey() string {
-	return string(sst.index.First().Key)
-}
+func (sst *SSTable) Len() int { return int(sst.index.Length()) }
 
-func (sst *SSTable) MaxKey() string {
-	return string(sst.index.Last().Key)
+func (sst *SSTable) MinKey() []byte {
+	if sst.minKey != nil {
+		return sst.minKey
+	}
+	return sst.index.First().Key
 }

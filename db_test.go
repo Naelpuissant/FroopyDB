@@ -12,7 +12,7 @@ import (
 	"froopydb/x"
 )
 
-var memTableMaxSize = froopydb.KB
+var memTableMaxSize = froopydb.MB
 
 func TestGetSet(t *testing.T) {
 	dir := t.TempDir()
