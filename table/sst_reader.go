@@ -68,52 +68,50 @@ func (r SSTReader) ReadBloomFilter() []byte {
 	return b
 }
 
+func (r SSTReader) ReadIndexAtOffset(offset int64) (*IdxItem, error) {
+	klenBytes := make([]byte, 2)
+	_, err := r.file.ReadAt(klenBytes, offset)
+	if err != nil {
+		return nil, fmt.Errorf("%w, klen is 2B but we are %d", ErrSSTReaderIndexIterFailed, offset)
+	}
+	offset += 2
+
+	klen := x.BytesToUint16(klenBytes)
+	key := make([]byte, klen)
+	_, err = r.file.ReadAt(key, offset)
+	if err != nil {
+		return nil, fmt.Errorf("%w, key is %dB but we are %d", ErrSSTReaderIndexIterFailed, klen, offset)
+	}
+	offset += int64(klen)
+
+	valOffset := make([]byte, 4)
+	_, err = r.file.ReadAt(valOffset, offset)
+	if err != nil {
+		return nil, fmt.Errorf("%w, offset is 4B but we are %d", ErrSSTReaderIndexIterFailed, offset)
+	}
+	offset += 4
+
+	return &IdxItem{
+		Key:    key,
+		Offset: x.BytesToUint32(valOffset),
+	}, nil
+}
+
 func (r *SSTReader) IndexIter() iter.Seq2[*IdxItem, error] {
 	return func(yield func(*IdxItem, error) bool) {
 		endIdxOffset := int64(r.Metadata.BfOffset)
 		curr := int64(r.Metadata.IdxOffset)
 
 		for curr < endIdxOffset {
-			klenBytes := make([]byte, 2)
-			_, err := r.file.ReadAt(klenBytes, curr)
+
+			idx, err := r.ReadIndexAtOffset(curr)
 			if err != nil {
-				yield(
-					nil,
-					fmt.Errorf("%w, klen is 2B but we are %d/%d", ErrSSTReaderIndexIterFailed, curr, endIdxOffset),
-				)
+				yield(nil, err)
 				return
 			}
-			curr += 2
+			curr += 2 + int64(len(idx.Key)) + 4 // klen + key + offset
 
-			klen := x.BytesToUint16(klenBytes)
-			key := make([]byte, klen)
-			_, err = r.file.ReadAt(key, curr)
-			if err != nil {
-				yield(
-					nil,
-					fmt.Errorf("%w, key is %dB but we are %d/%d", ErrSSTReaderIndexIterFailed, klen, curr, endIdxOffset),
-				)
-				return
-			}
-			curr += int64(klen)
-
-			offset := make([]byte, 4)
-			_, err = r.file.ReadAt(offset, curr)
-			if err != nil {
-				yield(
-					nil,
-					fmt.Errorf("%w, offset is 4B but we are %d/%d", ErrSSTReaderIndexIterFailed, curr, endIdxOffset),
-				)
-				return
-			}
-			curr += 4
-
-			item := &IdxItem{
-				Key:    key,
-				Offset: x.BytesToUint32(offset),
-			}
-
-			if !yield(item, nil) {
+			if !yield(idx, nil) {
 				return
 			}
 		}
