@@ -126,6 +126,7 @@ func NewDB(config *DBConfig) *DB {
 }
 
 func (db *DB) Close() {
+	db.WaitJobs()
 	tables := db.tables.Load()
 	tables.sst.CloseAll()
 }

@@ -208,6 +208,25 @@ ok      froopydb        23.963s
 ```
 With the combo skiplist and bloom filter we clearly improved. Note that we have a 1024 byte memtable right now, with a more realistic size we should be way better (with 10MB/5s bench we are arround 4000ns/op for DB and 5k for get and 8k for write on Txn)
 
+
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8          100000              2422 ns/op
+BenchmarkDBGet
+BenchmarkDBGet-8          100000             31916 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8         100000              4066 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8         100000              1515 ns/op
+PASS
+ok      froopydb        7.309s
+```
+Adding bisect scan we end up with way better perfs overall, didn't expect that since we also use way less memory which improve the db scalling (before we had 1 skiplist per sst, now we only read sst). Get looks still too high to me...
+
 ## TODO
 
 - [x] MemTable/log (skiplist)
@@ -256,17 +275,22 @@ With the combo skiplist and bloom filter we clearly improved. Note that we have 
       - [x] Use bloom filter before sst search  
     - [x] Check if key between sst min/max
     - [ ] Bisect sst scan and remove skiplist inmemory index
+        - [x] add IDX_NKEYS_SIZE and IDX_OFFSET_LIST_SIZE to metadata and provide the IDX_OFFSET_LIST
+        - [x] implement bisect scan on SSTReader
+        - [ ] perf check
+        - [ ] update doc/readme
     - [ ] Perf check
     - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
 - [ ] Fix CI
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)
-- [ ] Clear db metrics and start monitoring
+- [ ] Clear db metrics and start real monitoring
 - [x] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
+- [ ] Zero copy
 - [ ] DB iter (list all)
-- [ ] Add Range query to txn
+- [ ] Fix and add Range query to txn
 - [ ] arena skiplist with cas instead of mutex lock
 - [ ] Improve WAL (batch write, checksum...)
 - [ ] sst compression (bring back level compression)

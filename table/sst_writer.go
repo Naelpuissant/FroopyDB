@@ -3,17 +3,20 @@ package table
 import (
 	"bufio"
 	"froopydb/bloom"
-	"froopydb/skiplist"
 	"froopydb/x"
 	"io"
 	"os"
+	"slices"
 )
 
 type SSTWriter struct {
 	file   *os.File
 	writer *bufio.Writer
 	Pos    int64
+	idx    [][2][]byte // idx cache filling on the fly while writing data blocks, Key/Offset pairs
 }
+
+func (w *SSTWriter) NKeys() int { return len(w.idx) }
 
 func NewSSTWriter(file *os.File) *SSTWriter {
 	pos, _ := file.Seek(0, io.SeekCurrent)
@@ -21,11 +24,12 @@ func NewSSTWriter(file *os.File) *SSTWriter {
 		file:   file,
 		writer: bufio.NewWriter(file),
 		Pos:    pos,
+		idx:    [][2][]byte{},
 	}
 }
 
-// WriteDataBlock writes a data block (value) to the SSTable.
-func (w *SSTWriter) WriteDataBlock(value []byte) error {
+// WriteDataBlock writes a data block (value) to the SSTable and updates idx
+func (w *SSTWriter) WriteDataBlock(key, value []byte) error {
 	vlen := uint16(len(value))
 	vlenBytes := x.Uint16ToBytes(vlen)
 
@@ -39,6 +43,8 @@ func (w *SSTWriter) WriteDataBlock(value []byte) error {
 		return err
 	}
 
+	w.idx = append(w.idx, [2][]byte{key, x.Uint32ToBytes(uint32(w.Pos))})
+
 	w.Pos += int64(VLEN_SIZE + int(vlen))
 
 	return nil
@@ -46,9 +52,12 @@ func (w *SSTWriter) WriteDataBlock(value []byte) error {
 
 // WriteIndex writes the index map to the SSTable
 // and set bloom filter key
-func (w *SSTWriter) WriteIndex(index *skiplist.Skiplist, bf *bloom.BloomFilter) error {
-	for key, offset := range index.KVIter() {
-		plainKey, _ := x.DecodeKey(key) // add key without ts
+func (w *SSTWriter) WriteIndexAndUpdateBf(bf *bloom.BloomFilter) error {
+	idxStartBlocks := make([]byte, 0, len(w.idx)*IDX_START_BLOCKS_SIZE)
+	for _, pair := range w.idx {
+		key, offset := pair[0], pair[1]
+
+		plainKey, _ := x.DecodeKey([]byte(key)) // add key without ts
 		bf.Add(plainKey)
 
 		klen := uint16(len(key))
@@ -68,8 +77,15 @@ func (w *SSTWriter) WriteIndex(index *skiplist.Skiplist, bf *bloom.BloomFilter) 
 			return err
 		}
 
+		idxStartBlocks = slices.Concat(idxStartBlocks, x.Uint32ToBytes(uint32(w.Pos)))
 		w.Pos += int64(KLEN_SIZE + int(klen) + OFFSET_SIZE)
 	}
+
+	_, err := w.writer.Write(idxStartBlocks)
+	if err != nil {
+		return err
+	}
+	w.Pos += int64(len(idxStartBlocks))
 
 	return nil
 }
@@ -93,11 +109,15 @@ func (w *SSTWriter) WriteMetadata(level uint16, incr uint16, idxOffset uint32, b
 	copy(metadataBytes[0:LEVEL_SIZE], x.Uint16ToBytes(level))
 	copy(metadataBytes[LEVEL_SIZE:LEVEL_SIZE+INCR_SIZE], x.Uint16ToBytes(incr))
 	copy(
-		metadataBytes[LEVEL_SIZE+INCR_SIZE:METADATA_SIZE-BF_OFFSET_SIZE],
+		metadataBytes[LEVEL_SIZE+INCR_SIZE:LEVEL_SIZE+INCR_SIZE+NKEYS_SIZE],
+		x.Uint32ToBytes(uint32(w.NKeys())),
+	)
+	copy(
+		metadataBytes[LEVEL_SIZE+INCR_SIZE+NKEYS_SIZE:LEVEL_SIZE+INCR_SIZE+NKEYS_SIZE+IDX_OFFSET_SIZE],
 		x.Uint32ToBytes(idxOffset),
 	)
 	copy(
-		metadataBytes[LEVEL_SIZE+INCR_SIZE+IDX_OFFSET_SIZE:METADATA_SIZE],
+		metadataBytes[LEVEL_SIZE+INCR_SIZE+NKEYS_SIZE+IDX_OFFSET_SIZE:METADATA_SIZE],
 		x.Uint32ToBytes(bfOffset),
 	)
 
