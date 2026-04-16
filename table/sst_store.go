@@ -57,7 +57,7 @@ func loadSSTablesFromFile(logger *logger.Logger, tables map[int][]*SSTable, fold
 			if err != nil {
 				return err
 			}
-			logger.Debug("Recovered SSTable index", "size", table.index.Length())
+			logger.Debug("Recovered SSTable index", "size", table.size)
 			tables[table.level] = append(tables[table.level], table)
 		}
 	}

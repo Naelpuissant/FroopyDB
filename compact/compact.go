@@ -13,20 +13,20 @@ func doCompact(tables []*t.SSTable, target *t.SSTable) *t.SSTable {
 	}
 
 	// persist in new tmp file with max incr file name
-	tmpSegment := t.NewSSTable(target.Folder(), 1, target.Incr(), true, 0)
-	tmpSegment.Open()
+	newTable := t.NewSSTable(target.Folder(), 1, target.Incr(), true, 0)
+	newTable.Open()
 
-	tmpSegment.InitWriter()
+	newTable.InitWriter()
 	for key, value := range compactedTable {
-		tmpSegment.WriteDataBlock([]byte(key), value)
+		newTable.WriteDataBlock([]byte(key), value)
 	}
-	idxOffset, _ := tmpSegment.WriteIndex()
-	bfOffset, _ := tmpSegment.WriteBloomFilter()
-	tmpSegment.WriteMetadata(idxOffset, bfOffset)
-	tmpSegment.FlushWriter()
-	tmpSegment.Ready()
+	idxOffset, _ := newTable.WriteIndex()
+	bfOffset, _ := newTable.WriteBloomFilter()
+	newTable.WriteMetadata(idxOffset, bfOffset)
+	newTable.FlushWriter()
+	newTable.Ready()
 
-	return tmpSegment
+	return newTable
 }
 
 func MaybeCompact(store *t.SSTableStore) map[int][]*t.SSTable {
