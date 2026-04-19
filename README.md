@@ -227,6 +227,26 @@ ok      froopydb        7.309s
 ```
 Adding bisect scan we end up with way better perfs overall, didn't expect that since we also use way less memory which improve the db scalling (before we had 1 skiplist per sst, now we only read sst). Get looks still too high to me...
 
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8                  100000             11236 ns/op
+BenchmarkDBGet
+BenchmarkDBGet-8                  100000             91373 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8                 100000             13546 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8                 100000            149743 ns/op
+BenchmarkTxnRandGet
+BenchmarkTxnRandGet-8             100000            148971 ns/op
+PASS
+ok      froopydb        52.047s
+```
+Changed how my bench works, a bit scary but I'm ok with that since I shows clearly what need to be improved in pprof. For now still ok with Set because most of the job are down in parallel. For the get I still need to improve the bisect perfs and maybe monitor my bloom filter hit rate for exemple.
+
 ## TODO
 
 - [x] MemTable/log (skiplist)
@@ -280,11 +300,13 @@ Adding bisect scan we end up with way better perfs overall, didn't expect that s
         - [ ] perf check
         - [ ] update doc/readme
     - [ ] Perf check
+        - [ ] Perf hint : On sst search, 1 read syscall per index, read the all index and search in it (might be a good candidate for mmap). 
     - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
 - [ ] Fix CI
+- [ ] Bug : When spawning new db or restarting, old log file should be used, do not create new log file.
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)
-- [ ] Clear db metrics and start real monitoring
+- [ ] Clear db metrics and start real monitoring (expvar should do the job)
 - [x] Fix and update benchs
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery

@@ -1,6 +1,9 @@
 package froopydb_test
 
 import (
+	"fmt"
+	"math/rand/v2"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -129,8 +132,8 @@ func TestTxnGetConflict(t *testing.T) {
 }
 
 func BenchmarkTxnSet(b *testing.B) {
-	dir := b.TempDir()
-	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	datasetSize := 100_000
+	dir := fmt.Sprintf("./bench/data/txn/%d", datasetSize)
 	db := froopydb.NewDB(
 		&froopydb.DBConfig{
 			Folder:          dir,
@@ -141,10 +144,15 @@ func BenchmarkTxnSet(b *testing.B) {
 	)
 	defer db.Close()
 
+	keys := make([][2][]byte, datasetSize)
+	for i := range datasetSize {
+		keys[i] = [2][]byte{x.EncodeKey([]byte(strconv.Itoa(i)), 0), []byte("load")}
+	}
+
 	b.ResetTimer()
 	txn := db.NewTransaction()
 	for i := 0; i < b.N; i++ {
-		txn.Set(x.IntKey(i), []byte("load"))
+		txn.Set(keys[i%datasetSize][0], keys[i%datasetSize][1])
 		if i%1000 == 0 {
 			txn.Commit()
 			txn = db.NewTransaction()
@@ -154,31 +162,56 @@ func BenchmarkTxnSet(b *testing.B) {
 }
 
 func BenchmarkTxnGet(b *testing.B) {
-	dir := b.TempDir()
-	// db := froopydb.NewDB(froopydb.DefaultConfig(dir))
+	datasetSize := 100_000
+	dir := fmt.Sprintf("./bench/data/txn/%d", datasetSize)
 	db := froopydb.NewDB(
 		&froopydb.DBConfig{
 			Folder:          dir,
 			MemTableMaxSize: memTableMaxSize,
-			ClearOnStart:    true,
+			ClearOnStart:    false,
 			LogLevel:        logger.INFO,
 		},
 	)
 	defer db.Close()
 
-	txn := db.NewTransaction()
-
-	// Populate the database
-	for i := 0; i < b.N; i++ {
-		txn.Set(x.IntKey(i), []byte("load"))
+	keys := make([][2][]byte, datasetSize)
+	for i := range datasetSize {
+		keys[i] = [2][]byte{x.EncodeKey([]byte(strconv.Itoa(i)), 0), []byte("load")}
 	}
-	txn.Commit()
-	// db.WaitJobs()
 
 	b.ResetTimer()
-	txn = db.NewTransaction()
+	txn := db.NewTransaction()
 	for i := 0; i < b.N; i++ {
-		txn.Get(x.IntKey(i))
+		db.Get(keys[i%datasetSize][0])
+	}
+	txn.Commit()
+	b.StopTimer()
+}
+
+func BenchmarkTxnRandGet(b *testing.B) {
+	datasetSize := 100_000
+	dir := fmt.Sprintf("./bench/data/txn/%d", datasetSize)
+	db := froopydb.NewDB(
+		&froopydb.DBConfig{
+			Folder:          dir,
+			MemTableMaxSize: memTableMaxSize,
+			ClearOnStart:    false,
+			LogLevel:        logger.INFO,
+		},
+	)
+	defer db.Close()
+
+	keys := make([][2][]byte, datasetSize)
+	rands := make([]int, datasetSize)
+	for i := range datasetSize {
+		rands[i] = rand.IntN(datasetSize)
+		keys[i] = [2][]byte{x.EncodeKey([]byte(strconv.Itoa(i)), 0), []byte("load")}
+	}
+
+	b.ResetTimer()
+	txn := db.NewTransaction()
+	for i := 0; i < b.N; i++ {
+		db.Get(keys[rands[i%datasetSize]][0])
 	}
 	txn.Commit()
 	b.StopTimer()
