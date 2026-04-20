@@ -6,27 +6,26 @@
 A persistent LSM-tree based/key-value db for educational purpose
 
 
-## Goal
-
-* Learn more about go
-* Learn more about db architectures
-* Start simple and improve perf after
-
-
 ## File formats
 
 SSTable
 ```
 Data
 |            Data Block            |
-| vlen uint16 | value bytes []byte | ... 
+| vlen uint16 | value []byte | ... 
 
 Index
 |                  Index Block                   |
-| klen uint16 | key bytes []byte | offset uint32 | ...  
+| klen uint16 | key []byte | offset uint32 | ...  
+
+Index Start Offset
+| keyOffset uint32 | ...  
+
+Bloom Filter 
+| bitmap []byte |
 
 Metadata
-| level uint16 | increment uint16 | indexStartPos uint32 |
+| level uint16 | increment uint16 | nkeys uint32 | indexOffset uint32 | bloomFilterOffset uint32
 ```
 
 WAL
@@ -294,11 +293,11 @@ Changed how my bench works, a bit scary but I'm ok with that since I shows clear
       - [x] Bloom filter persist/retrieve
       - [x] Use bloom filter before sst search  
     - [x] Check if key between sst min/max
-    - [ ] Bisect sst scan and remove skiplist inmemory index
+    - [x] Bisect sst scan and remove skiplist inmemory index
         - [x] add IDX_NKEYS_SIZE and IDX_OFFSET_LIST_SIZE to metadata and provide the IDX_OFFSET_LIST
         - [x] implement bisect scan on SSTReader
-        - [ ] perf check
-        - [ ] update doc/readme
+        - [x] perf check
+        - [x] update doc/readme
     - [ ] Perf check
         - [ ] Perf hint : On sst search, 1 read syscall per index, read the all index and search in it (might be a good candidate for mmap). 
     - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
