@@ -6,6 +6,8 @@ import (
 	"froopydb/x"
 	"iter"
 	"os"
+
+	"github.com/edsrzf/mmap-go"
 )
 
 type IdxItem struct {
@@ -18,7 +20,7 @@ type IdxItem struct {
 func (i *IdxItem) Size() int64 { return int64(KLEN_SIZE + len(i.Key) + OFFSET_SIZE) }
 
 type SSTReader struct {
-	file     *os.File
+	file     *bytes.Reader
 	fsize    int64
 	Metadata *SSTMetadata
 }
@@ -28,8 +30,15 @@ func NewSSTReader(file *os.File) (*SSTReader, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	mf, err := mmap.Map(file, mmap.RDONLY, 0)
+	if err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(mf)
+
 	sstReader := &SSTReader{
-		file:  file,
+		file:  reader,
 		fsize: fstat.Size(),
 	}
 	sstReader.SetMetadata()
