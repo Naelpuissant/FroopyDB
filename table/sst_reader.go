@@ -139,66 +139,65 @@ func (r *SSTReader) IndexIter() iter.Seq2[*IdxItem, error] {
 }
 
 func (r *SSTReader) Search(key []byte) (*IdxItem, bool) {
-	return r.IdxBisectScan(key, 0, int(r.Metadata.NKeys))
+	return r.IdxBisectScan(key, 0, int(r.Metadata.NKeys)-1)
 }
 
 func (r *SSTReader) IdxBisectScan(key []byte, start, end int) (*IdxItem, bool) {
 	idxStartBlocks := r.GetIdxStartBlocksOffset()
-	return r.doIdxBisectScan(key, 0, int(r.Metadata.NKeys)-1, idxStartBlocks)
-}
-
-func (r *SSTReader) doIdxBisectScan(key []byte, start, end int, idxStartBlocks uint32) (*IdxItem, bool) {
-	if start > end {
-		return nil, false
-	}
-
-	mid := (start + end) / 2
-	midKeyStartBlockOffset := idxStartBlocks + uint32(mid)*uint32(IDX_START_BLOCKS_SIZE)
-	idxItem, err := r.ReadIdxItemAtStartBlockOffset(int64(midKeyStartBlockOffset))
-	if err != nil {
-		panic(err)
-	}
-
 	searchKey, searchTs := x.DecodeKey(key)
-	plainKey, ts := x.DecodeKey(idxItem.Key)
-	keyCmp := bytes.Compare(plainKey, searchKey)
 
-	if keyCmp < 0 {
-		// Search higher key to the right of mid
-		return r.doIdxBisectScan(key, mid+1, end, idxStartBlocks)
-	}
-	if keyCmp > 0 {
-		// Search lower key to the left of mid
-		return r.doIdxBisectScan(key, start, mid-1, idxStartBlocks)
-	}
-	if keyCmp == 0 {
-		// Keys are equal, compare timestamps
-		if ts == searchTs {
-			return idxItem, true
+	var bestCandidate *IdxItem
+	var bestCandidateTs uint64
+	found := false
+
+	for start <= end {
+		mid := (start + end) / 2
+		midKeyStartBlockOffset := idxStartBlocks + uint32(mid)*uint32(IDX_START_BLOCKS_SIZE)
+		idxItem, err := r.ReadIdxItemAtStartBlockOffset(int64(midKeyStartBlockOffset))
+		if err != nil {
+			panic(err)
 		}
-		if ts < searchTs {
-			// Search to a highest timestamp to the right of mid
-			candidate, found := r.doIdxBisectScan(key, mid+1, end, idxStartBlocks)
-			if found {
-				_, candidateTs := x.DecodeKey(candidate.Key)
-				if candidateTs > ts {
-					return candidate, true
-				}
+
+		plainKey, ts := x.DecodeKey(idxItem.Key)
+		keyCmp := bytes.Compare(plainKey, searchKey)
+
+		if keyCmp < 0 {
+			// Search higher key to the right of mid
+			start = mid + 1
+			continue
+		}
+		if keyCmp > 0 {
+			// Search lower key to the left of mid
+			end = mid - 1
+			continue
+		}
+		if keyCmp == 0 {
+			// Keys are equal, compare timestamps
+			if ts == searchTs {
 				return idxItem, true
 			}
-			return idxItem, true
-		}
-		if ts > searchTs {
-			// Search to a lowest timestamp to the left of mid
-			candidate, found := r.doIdxBisectScan(key, start, mid-1, idxStartBlocks)
-			if found {
-				_, candidateTs := x.DecodeKey(candidate.Key)
-				if candidateTs < ts {
-					return candidate, true
+			if ts < searchTs {
+				// Search to a highest timestamp to the right of mid
+				// We are looking for the closest ts to searchTs
+				if !found || ts > bestCandidateTs {
+					bestCandidate = idxItem
+					bestCandidateTs = ts
+					found = true
 				}
+				start = mid + 1
+				continue
 			}
-			return nil, false
+			if ts > searchTs {
+				// Search to a lowest timestamp to the left of mid
+				// We absolutly want to find a ts lower than searchTs
+				end = mid - 1
+				continue
+			}
 		}
+	}
+
+	if found {
+		return bestCandidate, true
 	}
 
 	return nil, false
