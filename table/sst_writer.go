@@ -2,11 +2,11 @@ package table
 
 import (
 	"bufio"
+	"bytes"
 	"froopydb/bloom"
 	"froopydb/x"
 	"io"
 	"os"
-	"slices"
 )
 
 type SSTWriter struct {
@@ -53,7 +53,7 @@ func (w *SSTWriter) WriteDataBlock(key, value []byte) error {
 // WriteIndex writes the index map to the SSTable
 // and set bloom filter key
 func (w *SSTWriter) WriteIndexAndUpdateBf(bf *bloom.BloomFilter) error {
-	idxStartBlocks := make([]byte, 0, len(w.idx)*IDX_START_BLOCKS_SIZE)
+	idxStartBlocks := bytes.NewBuffer(make([]byte, 0, len(w.idx)*IDX_START_BLOCKS_SIZE))
 	for _, pair := range w.idx {
 		key, offset := pair[0], pair[1]
 
@@ -77,15 +77,16 @@ func (w *SSTWriter) WriteIndexAndUpdateBf(bf *bloom.BloomFilter) error {
 			return err
 		}
 
-		idxStartBlocks = slices.Concat(idxStartBlocks, x.Uint32ToBytes(uint32(w.Pos)))
+		idxStartBlocks.Write(x.Uint32ToBytes(uint32(w.Pos)))
 		w.Pos += int64(KLEN_SIZE + int(klen) + OFFSET_SIZE)
 	}
 
-	_, err := w.writer.Write(idxStartBlocks)
+	idxStartBlocksBytes := idxStartBlocks.Bytes()
+	_, err := w.writer.Write(idxStartBlocksBytes)
 	if err != nil {
 		return err
 	}
-	w.Pos += int64(len(idxStartBlocks))
+	w.Pos += int64(len(idxStartBlocksBytes))
 
 	return nil
 }
