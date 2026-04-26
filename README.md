@@ -244,7 +244,30 @@ BenchmarkTxnRandGet-8             100000            148971 ns/op
 PASS
 ok      froopydb        52.047s
 ```
-Changed how my bench works, a bit scary but I'm ok with that since I shows clearly what need to be improved in pprof. For now still ok with Set because most of the job are down in parallel. For the get I still need to improve the bisect perfs and maybe monitor my bloom filter hit rate for exemple.
+Changed how my bench works, a bit scary but I'm ok with that since it shows clearly what need to be improved in pprof. For now still ok with Set because most of the job are down in parallel. For the Get I still need to improve the bisect perfs and maybe monitor my bloom filter hit rate.
+
+
+```
+goos: linux
+goarch: amd64
+pkg: froopydb
+cpu: Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz
+BenchmarkDBSet
+BenchmarkDBSet-8                  100000              7044 ns/op
+BenchmarkDBGet
+BenchmarkDBGet-8                  100000              2261 ns/op
+BenchmarkTxnSet
+BenchmarkTxnSet-8                 100000              8618 ns/op
+BenchmarkTxnGet
+BenchmarkTxnGet-8                 100000              3726 ns/op
+BenchmarkTxnRandGet
+BenchmarkTxnRandGet-8             100000              3914 ns/op
+PASS
+ok      froopydb        3.016s
+```
+After using mmap on sst reader, we are back with reasonable perfs.
+Can still be improved but fine for now.
+
 
 ## TODO
 
@@ -287,7 +310,7 @@ Changed how my bench works, a bit scary but I'm ok with that since I shows clear
 - [x] Just quick check mvcc on get from sst (hell nah)
 - [x] I wonder if it's viable to keep the index, massive clean and double check everything to have everything working, bench, start implementation without index lookup and with bloom filters (memory efficient)
     - [x] idea to make index work -> use skiplist (create new table on delete key, costly but only safe solution for now)
-- [ ] Search massive rework (objective back to 1000ns/op)
+- [ ] Search massive rework
     - [x] Bloom filter
       - [x] Create bloom filter
       - [x] Bloom filter persist/retrieve
@@ -298,11 +321,15 @@ Changed how my bench works, a bit scary but I'm ok with that since I shows clear
         - [x] implement bisect scan on SSTReader
         - [x] perf check
         - [x] update doc/readme
-    - [ ] Perf check
-        - [ ] Perf hint : On sst search, 1 read syscall per index, read the all index and search in it (might be a good candidate for mmap). 
-    - [ ] Lrucache (start thinking about it, skip it for now if perfs are back to be 1000ns/op)
-- [ ] Fix CI
-- [ ] Bug : When spawning new db or restarting, old log file should be used, do not create new log file.
+    - [ ] Perf check -> still not that good
+        - [x] Perf hint 1 : On sst search, 1 read syscall per index, read the all index and search in it (might be a good candidate for mmap).- -> Doesn't looks satisfying, still too much reads syscalls, block bin search should be the key.
+        - [x] Perf hint 1 : MMap the entire SST -> lol this is huge (~2k ns/ops)
+        - [ ] Perf hint 1.5 : When looping, we don't want to heap allocate on each iteration, to fix that, only return key start/end offsets and only create object once.
+        - [ ] Perf hint 2 : Block approach, block (first key len, first key, offset), search block, then search inside block
+        - [ ] Perf hint 3 : Block lru cache
+        - [ ] Perf hint 3.5 : maybe adding a bloom filter on block might be good
+- [ ] Bug : When spawning new db or restarting, old log file should be used, do not create new log file. -> must be fixed when I'll add manifest
+- [ ] Bug : Sometime compaction test fails, investigate
 - [x] Put back background compaction jobs
 - [x] Improve compaction algo (multi level)
 - [ ] Clear db metrics and start real monitoring (expvar should do the job)
@@ -328,7 +355,6 @@ Changed how my bench works, a bit scary but I'm ok with that since I shows clear
 
 
 ## Usefull links
-- https://github.com/Naelpuissant/mehdb/blob/main/document.pdf
 - https://www.nan.fyi/database
 - https://github.com/dgraph-io/badger/tree/main
 - https://github.com/rosedblabs/wal/tree/main
