@@ -144,10 +144,7 @@ func (r *SSTReader) Search(key []byte) (*IdxItem, bool) {
 
 func (r *SSTReader) IdxBisectScan(key []byte, start, end int) (*IdxItem, bool) {
 	idxStartBlocks := r.GetIdxStartBlocksOffset()
-	searchKey, searchTs := x.DecodeKey(key)
-
 	var bestCandidate *IdxItem
-	var bestCandidateTs uint64
 	found := false
 
 	for start <= end {
@@ -158,38 +155,36 @@ func (r *SSTReader) IdxBisectScan(key []byte, start, end int) (*IdxItem, bool) {
 			panic(err)
 		}
 
-		plainKey, ts := x.DecodeKey(idxItem.Key)
-		keyCmp := bytes.Compare(plainKey, searchKey)
-
+		keyCmp := bytes.Compare(idxItem.Key[:len(idxItem.Key)-8], key[:len(key)-8])
 		if keyCmp < 0 {
 			// Search higher key to the right of mid
 			start = mid + 1
 			continue
 		}
 		if keyCmp > 0 {
+			// Shortcut: we pass the key, no point continuing, return candidate if we have one
+			if found {
+				return bestCandidate, true
+			}
 			// Search lower key to the left of mid
 			end = mid - 1
 			continue
 		}
 		if keyCmp == 0 {
 			// Keys are equal, compare timestamps
-			if ts == searchTs {
+			tsCmp := bytes.Compare(idxItem.Key[len(idxItem.Key)-8:], key[len(key)-8:])
+			if tsCmp == 0 {
 				return idxItem, true
 			}
-			if ts < searchTs {
-				// Search to a highest timestamp to the right of mid
-				// We are looking for the closest ts to searchTs
-				if !found || ts > bestCandidateTs {
-					bestCandidate = idxItem
-					bestCandidateTs = ts
-					found = true
-				}
+			if tsCmp < 0 {
+				// Search higher ts to the right of mid
+				bestCandidate = idxItem
+				found = true
 				start = mid + 1
 				continue
 			}
-			if ts > searchTs {
-				// Search to a lowest timestamp to the left of mid
-				// We absolutly want to find a ts lower than searchTs
+			if tsCmp > 0 {
+				// Search lower ts to the left of mid
 				end = mid - 1
 				continue
 			}
