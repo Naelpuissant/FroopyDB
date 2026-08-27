@@ -88,7 +88,7 @@ Flush Job :
 
 MVCC transactions, inside the hood, the key is set with the commit ts.
 - Get : key after txn start should not appear
-- Get : retrieve last/max(ts) key
+- Get : retrieve last/max(ts) key (<= txn.ts)
 - Set : if value has been modified during the transaction -> abort
 - Commit : Set ts and db.Set
 - Rollback : abort txn 
@@ -101,14 +101,7 @@ Naive implementation :
 - get min value from k sorted tables
 - from min value table, search for next
 - from min value tables where min key <= curr min key, search for next
-- keep best candidate like `maxTs(curr.key <= next.key & next.ts < txn.ts)`
-
-notes : 
-- No copy (unless user asked it)
-
-potential improvements :
-- min heap with & streaming (prefetch fifo cache)
-- block streaming
+- keep best candidate like `maxTs(curr.key <= next.key & next.ts <= txn.ts)`
 
 update  03/07
 maybe I should think about some kind of cursor system :
@@ -220,25 +213,28 @@ Benchmark history and notes : [BENCH.md](BENCH.md).
 - [x] Improve compaction algo (multi level)
 - [ ] Clear db metrics and start real monitoring (expvar should do the job)
 - [x] Fix and update benchs
-- [ ] DB iter (list all)
+- [x] DB iter (list all)
+    - [ ] min heap or tournament tree to reduce time complexity (avoid looping to get min which leads to n²) 
+    - [ ] background prefetch inside fifo cache, where user could set a cache size
 - [ ] Have a proper manifest that allow me to restart db easily and to keep track of my compaction levels
 - [ ] Better corrupted/crashed file recovery
-- [ ] Value zero copy on get
+- [ ] Value zero copy on get and iter by default
 - [ ] Fix and add Range query to txn
 - [ ] arena skiplist with cas instead of mutex lock
 - [ ] Improve WAL (batch write, checksum...)
 - [ ] sst compression (bring back level compression)
+- [ ] adapt iter to get benefit from leveled compaction/non-overlapping sst
 - [ ] Allow transactionless operations (no conflict checking)
 - [ ] A cool thing might be to type my key (str or time for now and maybe int, compaction shouldn't be call on a time based db, int db should benefit from skiplist faster compare)
 - [x] Study MMap potential uses and benefits
 - [ ] Study HLL for approximate key counts
 - [ ] Study add index (and structured value mode -> NoSQL)
 - [ ] Improve compaction perfs (minimal cpu usage, study gc algorithms)
+- [ ] handle big values/keys
+- [ ] Study decoupling of MVCC (storage != txn)
 - [ ] Create a new web (api, tcp event loop, grpc...?)
     - [ ] Bench through web api
     - [ ] Test concurent queries
-- [ ] handle big values/keys
-- [ ] Study decoupling of MVCC (storage != txn)
 - [ ] Recode everything in Rust (or zig lol ?)
     - [ ] Do Python bindings
 
