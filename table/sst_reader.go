@@ -247,7 +247,7 @@ func (r *SSTReader) Range(from []byte, to []byte) []*IdxItem {
 	return idxItems
 }
 
-func (r *SSTReader) GetMinKey() []byte {
+func (r *SSTReader) MinKey() []byte {
 	idxStartBlocks := r.GetIdxStartBlocksOffset()
 	idxItem, err := r.ReadIdxItemAtStartBlockOffset(int64(idxStartBlocks))
 	if err != nil {

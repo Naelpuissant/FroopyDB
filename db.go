@@ -3,6 +3,7 @@ package froopydb
 
 import (
 	"bytes"
+	"iter"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -57,6 +58,30 @@ type Tables struct {
 	mem *table.MemTable
 	imm []*table.MemTable
 	sst *table.SSTableStore
+}
+
+// Iter gets all tables as a iterators.
+// For now we load everything but an optimization
+// would be to only load tables that have keys in
+// the range of the iterator (and the txn ts).
+func (t *Tables) iter() iter.Seq[iter.Seq2[string, []byte]] {
+	return func(yield func(iter.Seq2[string, []byte]) bool) {
+		if !yield(t.mem.KVIter()) {
+			return
+		}
+		for i := len(t.imm) - 1; i >= 0; i-- {
+			if !yield(t.imm[i].KVIter()) {
+				return
+			}
+		}
+		// Only handle level 0 ssts for now
+		sstables := t.sst.Tables()[0]
+		for _, sst := range sstables {
+			if !yield(sst.KVIter()) {
+				return
+			}
+		}
+	}
 }
 
 func NewTables(mem *table.MemTable, imm []*table.MemTable, sst *table.SSTableStore) *Tables {
@@ -178,6 +203,22 @@ func (db *DB) getFromImm(keyBytes []byte) ([]byte, bool) {
 // Delete marks a key as deleted by setting its value to a tombstone (0x00)
 func (db *DB) Delete(key []byte) {
 	_ = db.Set(key, []byte{0x00})
+}
+
+// Iter retrieves all key-value pairs
+// Only handle level 0 ssts for now
+// returns copy for now, but I might update it to lazy load values
+func (db *DB) Iter(ts int) (iter.Seq2[[]byte, []byte], error) {
+	tables := db.tables.Load()
+	it, _ := NewIterator(tables.iter(), ts)
+
+	return func(yield func([]byte, []byte) bool) {
+		for it.Start(); it.Ok(); it.Next() {
+			if !yield(it.Key, it.Value) {
+				break
+			}
+		}
+	}, nil
 }
 
 // Range retrieves all key-value pairs in the specified key range [fromKey, toKey]

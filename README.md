@@ -105,11 +105,30 @@ Naive implementation :
 
 notes : 
 - No copy (unless user asked it)
-- 
 
-hint for next improvements :
-- min heap with & streaming
+potential improvements :
+- min heap with & streaming (prefetch fifo cache)
 - block streaming
+
+update  03/07
+maybe I should think about some kind of cursor system :
+```
+sst | | | |3|4|5|6| |
+sst |0|1|2| |4| | | |
+imm | |1|2|3| | | | |
+mem |0| |2|3| | | |7|
+```
+- each line is a table (mem|imm|sst)
+- init cursors for each tables (3,0,1,0)
+- get min cursor -> curr = sst 0
+- move curr table cursor -> (3,1,1,0)
+- get min cursor and compare with curr -> curr mem 0
+- move curr table cursor -> (3,1,1,2)
+- get min cursor -> curr = sst 1
+- curr changed -> yield previous curr (mem 0)
+- move curr table cursor -> (3,2,1,2)
+- get min cursor and compare with curr -> curr imm 1
+- ...
 
 ## Bloc cache (wip)
 
@@ -125,6 +144,10 @@ pre|suffix
     68 -> 13368
     ...
 ```
+
+potential improvements :
+- bloc bloom filter (monitor write time, space increase...)
+
 ## Bench
 
 Benchmark history and notes : [BENCH.md](BENCH.md).
@@ -215,8 +238,9 @@ Benchmark history and notes : [BENCH.md](BENCH.md).
     - [ ] Bench through web api
     - [ ] Test concurent queries
 - [ ] handle big values/keys
+- [ ] Study decoupling of MVCC (storage != txn)
 - [ ] Recode everything in Rust (or zig lol ?)
-    - [ ] Do Python binding
+    - [ ] Do Python bindings
 
 
 ## References

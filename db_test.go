@@ -3,6 +3,7 @@ package froopydb_test
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,6 +87,57 @@ func TestDelete(t *testing.T) {
 	if found || string(result) != "" {
 		t.Fatalf("Key 1 must be deleted: %s, found=%v", result, found)
 	}
+}
+
+func TestIter(t *testing.T) {
+	dir := t.TempDir()
+	db := froopydb.NewDB(&froopydb.DBConfig{
+		Folder:          dir,
+		MemTableMaxSize: memTableMaxSize,
+		ClearOnStart:    true,
+		LogLevel:        logger.ERROR,
+	})
+	defer db.Close()
+
+	db.Set(x.EncodeKey([]byte("001"), 1), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("002"), 1), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("003"), 1), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("004"), 1), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("005"), 1), []byte("foo"))
+	db.Set(x.EncodeKey([]byte("100"), 1), []byte("foo"))
+
+	db.Set(x.EncodeKey([]byte("005"), 2), []byte("bar"))
+	db.Set(x.EncodeKey([]byte("001"), 2), []byte("bar"))
+
+	db.Delete(x.EncodeKey([]byte("002"), 2))
+	db.Delete(x.EncodeKey([]byte("003"), 2))
+	db.Delete(x.EncodeKey([]byte("009"), 2))
+
+	db.Set(x.EncodeKey([]byte("003"), 3), []byte("bar"))
+
+	iter, err := db.Iter(3)
+	if err != nil {
+		t.Fatalf("Failed to create iterator: %v", err)
+	}
+
+	expected := [][2]string{
+		{"001", "bar"},
+		{"003", "bar"},
+		{"004", "foo"},
+		{"005", "bar"},
+		{"100", "foo"},
+	}
+
+	got := [][2]string{}
+	for k, v := range iter {
+		fmt.Printf("Key: %s, Value: %s\n", k, v)
+		got = append(got, [2]string{string(k[:3]), string(v)})
+	}
+
+	if !reflect.DeepEqual(got, expected) {
+		t.Fatalf("unexpected iterator output\n got: %#v\nwant: %#v", got, expected)
+	}
+
 }
 
 func TestRange(t *testing.T) {

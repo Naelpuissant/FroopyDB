@@ -2,6 +2,7 @@ package froopydb
 
 import (
 	"errors"
+	"iter"
 	"sync"
 	"time"
 
@@ -92,6 +93,29 @@ func (t *Txn) Get(key []byte) ([]byte, bool) {
 		return value, ok
 	}
 	return t.db.Get(x.EncodeKey(key, t.ts))
+}
+
+// getTablesIterator returns a sequence of iterators
+// for the current transaction and the database tables
+// func (t *Txn) getTablesIterator() iter.Seq[iter.Seq2[[]byte, []byte]] {
+// }
+
+func (t *Txn) Iter() (iter.Seq2[[]byte, []byte], error) {
+	if err := t.checkActive(); err != nil {
+		return nil, err
+	}
+
+	// tables := t.getTablesIterator()
+	tables := t.db.tables.Load()
+	it, _ := NewIterator(tables.iter(), int(t.ts))
+
+	return func(yield func([]byte, []byte) bool) {
+		for it.Start(); it.Ok(); it.Next() {
+			if !yield(it.Key, it.Value) {
+				break
+			}
+		}
+	}, nil
 }
 
 // Commit the transaction

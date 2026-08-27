@@ -84,7 +84,7 @@ func NewSSTableFromFile(file *os.File) (*SSTable, error) {
 	}
 
 	// Get min max key
-	minKey := sstReader.GetMinKey()
+	minKey := sstReader.MinKey()
 	maxKey := sstReader.GetMaxKey()
 
 	bfBytes := sstReader.ReadBloomFilter()

@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"iter"
 	"os"
 
 	"froopydb/logger"
@@ -141,8 +142,22 @@ func (m *MemTable) Range(res map[string][]byte, fromKey []byte, toKey []byte) {
 	}
 }
 
+func (m *MemTable) KVIter() iter.Seq2[string, []byte] {
+	return func(yield func(string, []byte) bool) {
+		for elem := m.store.First(); elem != nil; elem = elem.Next() {
+			if !yield(string(elem.Key), elem.Value) {
+				break
+			}
+		}
+	}
+}
+
 func (m *MemTable) ShouldFlush(key, value []byte) bool {
 	return m.maxSize <= int(m.store.Size())+len(key)+len(value)
+}
+
+func (m *MemTable) MinKey() []byte {
+	return m.store.First().Key
 }
 
 func (m *MemTable) MaxSize() int {
