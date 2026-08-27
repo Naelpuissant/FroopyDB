@@ -93,7 +93,7 @@ MVCC transactions, inside the hood, the key is set with the commit ts.
 - Commit : Set ts and db.Set
 - Rollback : abort txn 
 
-## Iterator (wip)
+## Iterator
 
 Naive implementation :
 - inside txn
@@ -140,6 +140,14 @@ pre|suffix
 
 potential improvements :
 - bloc bloom filter (monitor write time, space increase...)
+
+
+## Manifest
+
+Actions are tracked into a manifest log to keep track on db. 
+On db Open we read the manifest to init tables.
+Actions to track :
+    - tbd ...
 
 ## Bench
 
